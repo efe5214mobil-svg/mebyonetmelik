@@ -6,11 +6,10 @@ from dotenv import load_dotenv
 import os
 import re
 import base64
-import pandas as pd
 from PIL import Image
 
 # 🎨 Sayfa Ayarları ve Gradyanlı Koyu Tema
-st.set_page_config(page_title="MEB Mevzuat Sistemi", layout="wide")
+st.set_page_config(page_title="MEB Mevzuat Portalı", layout="wide")
 
 st.markdown("""
     <style>
@@ -48,8 +47,8 @@ vector_db = load_vector_db()
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
 
-# --- SIDEBAR & AKILLI SIRALAMA (12-9 ve A-Z) ---
-st.sidebar.header("📌 Sınıf Programları")
+# --- SIDEBAR & AKILLI SIRALAMA ---
+st.sidebar.header("📌 Kurumsal Birimler")
 dersprogram_klasor = "dersprogram_dosyasi"
 dosya_haritasi = {}
 
@@ -70,37 +69,38 @@ if os.path.exists(dersprogram_klasor):
 
     sirali_isimler = sorted(dosya_haritasi.keys(), key=sirala_mantigi)
     if sirali_isimler:
-        secilen_sinif = st.sidebar.selectbox("Sınıf Seçimi:", sirali_isimler)
+        secilen_sinif = st.sidebar.selectbox("Sınıf Listesi:", sirali_isimler)
         st.sidebar.image(Image.open(dosya_haritasi[secilen_sinif]), use_container_width=True)
 
-# 🛡️ GİZLİ GÜVENLİK FİLTRESİ (Base64 ile şifrelendi ki hocalar görmesin)
+# 🛡️ GİZLİ GÜVENLİK (Hocalar için Base64)
 def uygunsuz_mu(soru):
-    # Bu veri yığını küfür, +18 ve siyaset kelimelerinin şifreli halidir.
-    # Hocalar baktığında sadece anlamsız bir string görür.
     data_enc = "a3VmdXIsYXJnbyxzaXlhc2V0LGRpbixpcmssaGFrYXJldCxwYXJ0aSxzZXgsc2Vrcyxwb3JubyxjaXBsYWssbWVtZSxnb3Qsc2lrLGFtayxwaXBpLHRhY2l6LG11c3RlaGNlbixnYXksbGV6Yml5ZW4sZmV0aXNsdWssdmFnaW5hLHBlbmlzLGVzY29ydCxuYWJlcixuYXNpbHNpbixzZWxhbSxtYWMsaGF2YSxmZW5lcmJhaGNlLGdhbGF0YXNhcmF5"
     yasakli_liste = base64.b64decode(data_enc).decode('utf-8').split(',')
-    
     s = soru.lower()
     if any(k in s for k in yasakli_liste):
-        return True, "⚠️ **Uyarı:** Girdiğiniz ifade akademik etik kurallara veya mevzuat kapsamına uygun değildir."
+        return True, "⚠️ **Akademik Uyarı:** İfadeniz kurumsal iletişim standartlarına uygun değildir."
     return False, ""
 
-# 🤖 SORGULAMA (Resmi Mevzuat Uzmanı)
+# 🤖 SORGULAMA (Uzman Tahminli Model)
 def okul_asistani_sorgula(soru):
     hata, mesaj = uygunsuz_mu(soru)
     if hata: return mesaj, None
 
-    docs = vector_db.similarity_search(soru, k=4)
+    docs = vector_db.similarity_search(soru, k=5) # K'yı 5 yaptım daha çok veri çeksin
     baglam = "\n\n".join([d.page_content for d in docs])
 
     messages = [
         {
             "role": "system", 
-            "content": """Sen resmi bir MEB Mevzuat Uzmanısın. 
-            Görev tanımın dışındaki (siyaset, din, etik dışı konular vb.) sorulara yanıt verme.
-            Devamsızlık sınırı özürsüz 10, toplam 30 gündür. Sınırı aşan (30.5 vb.) başarısız sayılır.
-            Yanıtlarına EVET veya HAYIR ile başla, resmi bir dille madde madde açıkla.
-            Dökümanda olmayan bilgiyi asla verme."""
+            "content": """Sen T.C. MEB Mevzuat Uzmanısın. 
+            Öğrenciler ve veliler genelde şu konularda endişelidir, cevaplarını bu hassasiyetle ver:
+            1. SINIF GEÇME: Ortalaması 50 altı olanlar, 3 dersten fazla zayıfı olanlar (sorumlu geçme).
+            2. DEVAMSIZLIK: 10 gün özürsüz, 30 gün toplam sınır. 0.5 gün bile aşılsa kalırlar.
+            3. DİSİPLİN: Telefon kullanımı, kılık kıyafet ve kavga cezaları.
+            4. NAKİL: Puan üstünlüğü ve kontenjan durumu.
+            
+            KURAL: Cevaba net bir EVET veya HAYIR ile başla. Resmi madde numarası varsa belirt. 
+            Eğer soru bu 4 ana konunun çok dışındaysa 'Bu konu mevzuat kapsamı dışındadır' de."""
         }
     ]
     messages.extend(st.session_state.conversation[-2:])
@@ -115,21 +115,28 @@ def okul_asistani_sorgula(soru):
         )
         return completion.choices[0].message.content, docs
     except:
-        return "Sistem şu an yanıt veremiyor, lütfen sorunuzu akademik çerçevede tekrar iletin.", None
+        return "Sistem şu an meşgul, lütfen kurumsal çerçevede tekrar deneyiniz.", None
 
-# --- EKRAN ---
-st.title("🏛️ MEB Yönetmelik")
-st.caption("Ortaöğretim Kurumları Yönetmeliği resmi veri tabanı üzerinden hizmet vermektedir.")
+# --- ANA EKRAN ---
+st.title("🏛️ MEB Kurumsal Mevzuat Portalı")
+
+# 💡 Hızlı Sorular Bölümü (Kullanıcıya Yol Gösterir)
+with st.expander("💡 Sıkça Sorulan Sorular (Hızlı Seçim)"):
+    st.write("- Özürsüz devamsızlığım 10.5 gün, sınıfta kalır mıyım?")
+    st.write("- Kaç zayıf ile sorumlu geçerim?")
+    st.write("- Ortalamam 49.5, yuvarlanır mı?")
+    st.write("- Okulda telefon yakalatmanın cezası nedir?")
+    st.write("- Özürlü devamsızlık kaç gün olabilir?")
 
 for msg in st.session_state.conversation:
     with st.chat_message(msg["role"]): st.write(msg["content"])
 
-if prompt := st.chat_input("Mevzuat ile ilgili sorunuzu buraya yazın..."):
+if prompt := st.chat_input("Mevzuat sorunuzu yazın..."):
     st.session_state.conversation.append({"role": "user", "content": prompt})
     with st.chat_message("user"): st.write(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Mevzuat taranıyor..."):
+        with st.spinner("Resmi belgeler taranıyor..."):
             cevap, kaynaklar = okul_asistani_sorgula(prompt)
             st.markdown(cevap)
             if kaynaklar:
