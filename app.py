@@ -49,7 +49,7 @@ if "conversation" not in st.session_state:
     st.session_state.conversation = []
 
 # --- SIDEBAR & AKILLI SIRALAMA (12-9 ve A-Z) ---
-st.sidebar.header("📌 Akademik Birimler")
+st.sidebar.header("📌 Sınıf Programları")
 dersprogram_klasor = "dersprogram_dosyasi"
 dosya_haritasi = {}
 
@@ -118,7 +118,7 @@ def okul_asistani_sorgula(soru):
         return "Sistem şu an yanıt veremiyor, lütfen sorunuzu akademik çerçevede tekrar iletin.", None
 
 # --- EKRAN ---
-st.title("🏛️ MEB Kurumsal Mevzuat Portalı")
+st.title("🏛️ MEB Yönetmelik")
 st.caption("Ortaöğretim Kurumları Yönetmeliği resmi veri tabanı üzerinden hizmet vermektedir.")
 
 for msg in st.session_state.conversation:
