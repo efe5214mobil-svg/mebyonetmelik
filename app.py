@@ -18,6 +18,7 @@ client = Groq(api_key=api_key)
 
 # 🎯 Başlık
 st.title("MEB Yönetmelik Asistanı - Sohbet Hafızalı")
+st.info("⚠️ Sadece MEB yönetmeliği ile ilgili sorular sorabilirsiniz. Uygunsuz sorular yanıtlanmayacaktır.")
 
 # 🧠 VECTOR DB
 @st.cache_resource
@@ -35,62 +36,51 @@ vector_db = load_vector_db()
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
 
-# 🔹 Uygunsuz soruları engelle
-def uygunsuz_soru_kontrol(soru):
-    yasak_kelimeler = [
-        "eşcinsel", "uyuşturucu", "küfür", "hakaret", "cinsel", "porno"
-    ]
-    for kelime in yasak_kelimeler:
-        if kelime.lower() in soru.lower():
-            return True
-    return False
-
-# 🔹 Baglam temizleme
-def temizle(text):
-    text = re.sub(r'(\d{4}/\s*){2,}', '', text)  # tekrar eden 2005/ gibi şeyleri sil
-    text = re.sub(r'\s+', ' ', text)             # fazla boşlukları tek boşluk yap
-    return text.strip()
+# 🔄 Tekrarlanan sayıları ve saçma tekrarları temizle
+def temizle_cevap(cevap):
+    # Tekrarlanan sayıları kaldır (örnek: 2005/ 2005/ 2005 -> 2005)
+    cevap = re.sub(r'(\b\d{2,4}\b)(?:/\s*\1)+', r'\1', cevap)
+    # Tekrarlanan boşlukları temizle
+    cevap = re.sub(r'\s{2,}', ' ', cevap)
+    return cevap
 
 # 🤖 SORGULAMA
 def okul_asistani_sorgula(soru):
-
-    # 🔴 uygunsuz soruları engelle
-    if uygunsuz_soru_kontrol(soru):
-        return "Üzgünüm, bu tür sorulara cevap veremem."
-
     # 🔍 arama sorgusu
     arama_sorgusu = f"{soru} meb yönetmelik maddesi devamsızlık şartları"
 
-    docs = vector_db.similarity_search_with_score(arama_sorgusu, k=5)
+    # 🔥 vektör DB arama
+    docs = vector_db.similarity_search_with_score(arama_sorgusu, k=3)
     docs = sorted(docs, key=lambda x: x[1])[:3]
     docs = [doc[0] for doc in docs]
 
     if not docs:
         return "Veri bulunamadı."
 
-    # baglam temizle
-    baglam = "\n\n".join([temizle(doc.page_content[:500]) for doc in docs])
+    # 🔥 bağlam oluştur
+    baglam = "\n\n".join([doc.page_content[:500] for doc in docs])
 
-    # mesajlar
+    # 🤖 AI çağrısı için mesajlar
     messages = [
         {"role": "system", "content": """
 Sen MEB yönetmeliği uzmanısın.
 Kurallar:
 - Sadece verilen bağlama göre cevap ver
 - Eğer madde varsa belirt
-- Gereksiz tekrar yapma
-- Uyduruk veya uygunsuz sorulara cevap verme
+- En yakın bilgiyi kullan
+- "Bulunamadı" deme
+- Cevapta küfür, hakaret, siyaset, din, ırk, cinsiyet ile ilgili içerik olamaz
+- Cevap sadece resmi MEB yönetmeliği ile ilgili olmalı
+- Anlamsız tekrarlar ve saçma ifadeler kullanma
 """}
     ]
 
-    # önceki sohbeti ekle
+    # Önceki sohbeti ekle
     for msg in st.session_state.conversation:
         messages.append(msg)
 
-    # kullanıcı mesajını en sonda ekle
     messages.append({"role": "user", "content": f"{baglam}\n\nSoru: {soru}"})
 
-    # chat completion
     chat_completion = client.chat.completions.create(
         messages=messages,
         model="openai/gpt-oss-120b",
@@ -99,17 +89,15 @@ Kurallar:
     )
 
     cevap = chat_completion.choices[0].message.content
+    cevap = temizle_cevap(cevap)
 
-    # session state güncelle
+    # 📝 Session state güncelle
     st.session_state.conversation.append({"role": "user", "content": soru})
     st.session_state.conversation.append({"role": "assistant", "content": cevap})
 
-    # kaynak ekleme
+    # 📚 Kaynak ekleme
     kaynaklar = [doc.page_content[:200] for doc in docs]
-
-    # kullanıcı mesajını en sonda göster
-    final_output = cevap + "\n\n📚 Kaynak:\n- " + "\n- ".join(kaynaklar) + f"\n\n💬 Siz: {soru}"
-    return final_output
+    return cevap + "\n\n📚 Kaynak:\n- " + "\n- ".join(kaynaklar)
 
 # 💬 Chat Arayüzü
 for msg in st.session_state.conversation:
