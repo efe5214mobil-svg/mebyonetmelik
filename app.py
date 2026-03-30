@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import os
 import re
 import base64
+import pandas as pd
 from PIL import Image
 
 # 🎨 Sayfa Ayarları ve Tema
@@ -29,6 +30,12 @@ st.markdown("""
     .stTextInput input {
         background-color: #252525 !important;
         color: white !important;
+        border: 1px solid #444 !important;
+    }
+    /* Tabloyu koyu temaya uyarla */
+    .stTable {
+        background-color: rgba(255, 255, 255, 0.05);
+        color: white;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -46,6 +53,26 @@ vector_db = load_vector_db()
 
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
+
+# --- GÖRSEL ÖZET FONKSİYONU (Çizili/Tablolu Gösterim) ---
+def gorsel_mevzuat_ozeti(docs):
+    """Gelen kaynak dökümanları temiz bir tabloya dönüştürür."""
+    data = []
+    for doc in docs:
+        content = doc.page_content
+        # Madde numarasını metin içinden bul
+        madde_match = re.search(r"MADDE\s+\d+", content, re.IGNORECASE)
+        madde_no = madde_match.group(0) if madde_match else "Genel Hüküm"
+        
+        # İçeriği temizle ve ilk 200 karakteri al
+        temiz_icerik = content.replace("\n", " ").strip()
+        ozet = temiz_icerik[:200] + "..." if len(temiz_icerik) > 200 else temiz_icerik
+        
+        data.append({"Dayanak": madde_no, "Resmi İçerik Özeti": ozet})
+    
+    df = pd.DataFrame(data)
+    st.markdown("#### 📋 Mevzuat Analiz Çizelgesi")
+    st.table(df)
 
 # --- SIDEBAR & SINIFLAR (12->9 ve A->Z) ---
 st.sidebar.header("📌 Sınıflar")
@@ -74,14 +101,13 @@ if os.path.exists(dersprogram_klasor):
         secilen_sinif = st.sidebar.selectbox("Sınıf Seçin:", sirali_isimler)
         st.sidebar.image(Image.open(dosya_haritasi[secilen_sinif]), use_container_width=True)
 
-# 🛡️ GİZLİ FİLTRE (Base64 Koruma)
+# 🛡️ GİZLİ GÜVENLİK FİLTRESİ (Base64)
 def uygunsuz_mu(soru):
-    # Küfür, +18 ve alakasız kelimeler şifreli haldedir.
     data_enc = "a3VmdXIsYXJnbyxzaXlhc2V0LGRpbixpcmssaGFrYXJldCxwYXJ0aSxzZXgsc2Vrcyxwb3JubyxjaXBsYWssbWVtZSxnb3Qsc2lrLGFtayxwaXBpLHRhY2l6LG11c3RlaGNlbixnYXksbGV6Yml5ZW4sZmV0aXNsdWssdmFnaW5hLHBlbmlzLGVzY29ydCxuYWJlcixuYXNpbHNpbixzZWxhbSxtYWMsaGF2YSxmZW5lcmJhaGNlLGdhbGF0YXNhcmF5"
     yasakli_liste = base64.b64decode(data_enc).decode('utf-8').split(',')
     s = soru.lower()
     if any(k in s for k in yasakli_liste):
-        return True, "⚠️ **Uyarı:** Girdiğiniz ifade okul kurallarına veya mevzuat kapsamına uygun değildir."
+        return True, "⚠️ **Uyarı:** Girdiğiniz ifade akademik etik kurallara veya mevzuat kapsamına uygun değildir."
     return False, ""
 
 # 🤖 SORGULAMA (MEB Yönetmelik Uzmanı)
@@ -96,15 +122,13 @@ def okul_asistani_sorgula(soru):
         {
             "role": "system", 
             "content": """Sen resmi bir MEB Yönetmelik Asistanısın. 
-            Cevaplarına asla 'Evet' veya 'Hayır' diyerek başlama. Doğrudan döküman verisini paylaş.
             
-            ÖNEMLİ KURALLAR:
-            - Özürlü devamsızlık sınırı en fazla 20 GÜNDÜR.
-            - Özürsüz devamsızlık sınırı 10 GÜNDÜR.
-            - Toplam (özürlü+özürsüz) devamsızlık 30 GÜNDÜR. 30.5 olan kalır.
-            - Sınıf geçme barajı 50 ortalamadır.
-            - Sorumlu geçme şartlarını dökümana göre açıkla.
-            - Üslubun ciddi, yardımsever ve tamamen yönetmelik odaklı olmalıdır."""
+            KESİN KURALLAR:
+            1. 'Evet' veya 'Hayır' diyerek söze başlama. Doğrudan döküman verisini açıkla.
+            2. 'responsibility' gibi yabancı terimler kullanma. Sadece 'Sorumluluk Sınavı' veya 'Sorumlu Geçme' terimlerini kullan.
+            3. Özürlü devamsızlık sınırı en fazla 20 GÜNDÜR. 
+            4. Ortalaması 50 altı olanlar en fazla 3 dersten 'Sorumlu' geçebilir, fazlası sınıf tekrarıdır.
+            5. Cevapların resmi, ciddi ve madde numaralarına dayalı olmalıdır."""
         }
     ]
     messages.extend(st.session_state.conversation[-2:])
@@ -119,38 +143,41 @@ def okul_asistani_sorgula(soru):
         )
         return completion.choices[0].message.content, docs
     except:
-        return "Şu an yanıt verilemiyor, lütfen sorunuzu yönetmelik çerçevesinde tekrar iletin.", None
+        return "Sistem şu an yanıt veremiyor, lütfen kurumsal çerçevede tekrar deneyin.", None
 
 # --- ANA EKRAN ---
 st.title("🎓 MEB Yönetmelik Asistanı")
 
-# 💡 Kapsamlı SSS Bölümü
 with st.expander("❓ Sıkça Sorulan Sorular"):
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown("**Devamsızlık Bilgileri**")
-        st.write("- Özürlü devamsızlık sınırı kaç gün?")
-        st.write("- Özürsüz 10 günü geçersem ne olur?")
-        st.write("- Heyet raporu devamsızlığı etkiler mi?")
-    with c2:
-        st.markdown("**Sınıf Geçme ve Disiplin**")
-        st.write("- Kaç zayıf ile sınıfta kalınır?")
+        st.markdown("**Devamsızlık ve Sorumluluk**")
+        st.write("- Özürlü devamsızlık sınırı 20 gün mü?")
         st.write("- Ortalamam 50 altındaysa sorumlu geçebilir miyim?")
-        st.write("- Okula telefon getirmenin cezası nedir?")
+    with c2:
+        st.markdown("**Disiplin ve Kurallar**")
+        st.write("- Okulda telefon yakalatmanın cezası nedir?")
+        st.write("- Sınıf tekrarı hangi durumlarda yapılır?")
 
 for msg in st.session_state.conversation:
     with st.chat_message(msg["role"]): st.write(msg["content"])
 
-if prompt := st.chat_input("Yönetmelik hakkında sorunuzu yazın..."):
+if prompt := st.chat_input("Yönetmelik sorunuzu buraya yazın..."):
     st.session_state.conversation.append({"role": "user", "content": prompt})
     with st.chat_message("user"): st.write(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Mevzuat taranıyor..."):
+        with st.spinner("Resmi mevzuat belgeleri analiz ediliyor..."):
             cevap, kaynaklar = okul_asistani_sorgula(prompt)
             st.markdown(cevap)
+            
             if kaynaklar:
-                with st.expander("📖 Dayanak Yönetmelik Maddeleri"):
-                    for k in kaynaklar: st.caption(k.page_content)
+                with st.expander("📖 Dayanak Yönetmelik Maddeleri (Görsel Analiz)"):
+                    # Çizili/Tablolu gösterim
+                    gorsel_mevzuat_ozeti(kaynaklar)
+                    st.divider()
+                    # Ham metin gösterimi
+                    for k in kaynaklar:
+                        st.caption(f"📍 {k.page_content}")
         
         st.session_state.conversation.append({"role": "assistant", "content": cevap})
