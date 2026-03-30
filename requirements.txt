@@ -5,5 +5,5 @@ langchain-community
 chromadb
 sentence-transformers
 python-dotenv
-Pillow
+pillow
 pandas
