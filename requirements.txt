@@ -5,6 +5,3 @@ langchain-community
 chromadb
 sentence-transformers
 python-dotenv
-camelot-py[cv]
-matplotlib
-pandas
