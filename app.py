@@ -8,36 +8,27 @@ import re
 import pandas as pd
 from PIL import Image
 
-# 🎨 Gelişmiş Gradyanlı Dark Tema
+# 🎨 Sayfa Ayarları ve Gradyanlı Koyu Tema
 st.set_page_config(page_title="MEB Yönetmelik Asistanı", layout="wide")
 
 st.markdown("""
     <style>
-    /* Arka plan gradyanı */
     .stApp {
-        background: linear-gradient(135deg, #1e1e1e 0%, #2d3436 100%);
-        color: #e0e0e0;
+        background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 50%, #2c3e50 100%);
+        color: #ffffff;
     }
-    
-    /* Sidebar düzeni */
     section[data-testid="stSidebar"] {
-        background-color: rgba(15, 15, 15, 0.8) !important;
-        border-right: 1px solid #444;
+        background-color: rgba(0, 0, 0, 0.8) !important;
     }
-    
-    /* Mesaj balonları */
     .stChatMessage {
         background-color: rgba(255, 255, 255, 0.05) !important;
+        border-radius: 15px;
         border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 15px !important;
-        margin-bottom: 10px;
     }
-
-    /* Input alanı */
+    /* Input alanını koyulaştır */
     .stTextInput input {
         background-color: #252525 !important;
         color: white !important;
-        border-radius: 10px !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -56,87 +47,118 @@ vector_db = load_vector_db()
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
 
-# --- SIDEBAR & DOSYA İSMİ TEMİZLEME ---
+# --- SIDEBAR & KESİN İSİM TEMİZLEME (12 - A Formatı) ---
 st.sidebar.header("📌 Sınıf Panosu")
 dersprogram_klasor = "dersprogram_dosyasi"
-
-dosya_haritasi = {} # { "Görünen Ad": "Gerçek Yol" }
+dosya_haritasi = {}
 
 if os.path.exists(dersprogram_klasor):
     dosyalar = [f for f in os.listdir(dersprogram_klasor) if f.lower().endswith(".png")]
-    
-    # 🎯 İsim Temizleme Mantığı (12A.PN-G -> 12 - A)
     for d in dosyalar:
-        # Sadece rakamları ve harfleri ayıkla (Örn: 12A)
-        temiz_isim = re.sub(r'[^a-zA-Z0-9]', '', d.replace(".png", ""))
-        
-        # Formatlama: "12A" -> "12 - A"
-        match = re.match(r"(\d+)([a-zA-Z]+)", temiz_isim)
+        # Uzantıyı ve gereksiz karakterleri temizle
+        isim_ham = d.lower().replace(".png", "").replace(" ", "").replace("-", "").replace(".", "")
+        # Rakam ve harf gruplarını bul (Örn: 12a)
+        match = re.search(r"(\d+)([a-z]+)", isim_ham)
         if match:
-            gosterim_adi = f"{match.group(1)} - {match.group(2).upper()}"
-        else:
-            gosterim_adi = temiz_isim.upper()
-            
-        dosya_haritasi[gosterim_adi] = os.path.join(dersprogram_klasor, d)
+            sayi = match.group(1)
+            harf = match.group(2).upper()
+            gosterim_adi = f"{sayi} - {harf}"
+            dosya_haritasi[gosterim_adi] = os.path.join(dersprogram_klasor, d)
 
-    # Sıralama (Önce 12, sonra 11...)
-    sirali_isimler = sorted(
-        dosya_haritasi.keys(), 
-        key=lambda x: (-int(re.search(r'\d+', x).group()) if re.search(r'\d+', x) else 0, x)
-    )
+    # 12'den 9'a doğru büyükten küçüğe sırala
+    def sirala_key(x):
+        r = re.search(r'\d+', x)
+        return -int(r.group()) if r else 0
+
+    sirali_isimler = sorted(dosya_haritasi.keys(), key=sirala_key)
 
     if sirali_isimler:
         secilen_sinif = st.sidebar.selectbox("Sınıfı seçin:", sirali_isimler)
-        st.sidebar.image(Image.open(dosya_haritasi[secilen_sinif]), caption=f"{secilen_sinif} Ders Programı")
+        st.sidebar.image(Image.open(dosya_haritasi[secilen_sinif]), caption=f"{secilen_sinif} Programı", use_container_width=True)
 else:
     st.sidebar.error("Klasör bulunamadı!")
 
-# ❌ Güvenlik
+# 🛡️ GELİŞMİŞ GÜVENLİK VE ALAKASIZ SORU FİLTRESİ
 def uygunsuz_mu(soru):
-    yasakli = ["küfür", "argo", "siyaset", "din", "hakaret"]
-    return any(k in soru.lower() for k in yasakli)
+    # 1. Küfür, Argo, Siyaset, Din, Irk Filtresi
+    yasakli_kelimeler = [
+        "küfür", "argo", "siyaset", "din", "ırk", "dil", "mezhep", "parti", 
+        "hükümet", "seçim", "türkiye", "ekonomi", "hakaret", "aptal", "gerizekalı"
+    ]
+    # 2. Saçma sapan/Alakasız sorular (Gündelik muhabbet)
+    alakasiz_kelimeler = ["naber", "nasılsın", "günaydın", "selam", "kimsin", "napıyorsun", "hava", "maç", "fenerbahçe", "galatasaray", "beşiktaş"]
+    
+    soru_low = soru.lower()
+    
+    # Yasaklı kelime kontrolü
+    if any(k in soru_low for k in yasakli_kelimeler):
+        return True, "Uygunsuz içerik (küfür, siyaset, din vb.) tespit edildi."
+    
+    # Çok kısa ve alakasız soruları engelle (Yönetmelik asistanı olduğu için)
+    if len(soru_low.split()) < 3 and any(k in soru_low for k in alakasiz_kelimeler):
+        return True, "Lütfen sadece MEB yönetmeliği ile ilgili teknik sorular sorunuz."
+    
+    return False, ""
 
-# 🤖 Sorgulama
+# 🤖 SORGULAMA (Detaycı & Güvenli)
 def okul_asistani_sorgula(soru):
-    if uygunsuz_mu(soru):
-        return "⚠️ Bu içerik kurallarımıza uygun değil.", None
+    hata_var, mesaj = uygunsuz_mu(soru)
+    if hata_var:
+        return f"⚠️ **Sistem Engeli:** {mesaj}", None
 
+    # Vektör veritabanında ara
     docs = vector_db.similarity_search(soru, k=4)
     baglam = "\n\n".join([doc.page_content for doc in docs])
 
     messages = [
-        {"role": "system", "content": "Sen detaycı bir MEB uzmanısın. Cevabına EVET/HAYIR ile başla ve madde madde açıkla."}
+        {
+            "role": "system", 
+            "content": """Sen ciddi bir MEB Yönetmelik Uzmanısın.
+            SADECE sana verilen bağlamdaki dökümanlara göre cevap ver.
+            Eğer soru yönetmelik, okul kuralları, sınavlar veya disiplinle ilgili değilse 'Bu soru yönetmelik kapsamı dışındadır' de.
+            Cevaplarına mutlaka EVET veya HAYIR ile başla, sonra yönetmelik maddelerine dayanarak detaylıca açıkla.
+            Dökümanda olmayan hiçbir bilgiyi uydurma. Siyaset, din veya günlük sohbet yapma."""
+        }
     ]
+    # Son 2 mesajı hafıza olarak gönder
     messages.extend(st.session_state.conversation[-2:])
     messages.append({"role": "user", "content": f"Bağlam:\n{baglam}\n\nSoru: {soru}"})
 
-    completion = client.chat.completions.create(
-        messages=messages,
-        model="llama-3.3-70b-versatile",
-        temperature=0,
-        max_tokens=1000
-    )
-    return completion.choices[0].message.content, docs
+    try:
+        completion = client.chat.completions.create(
+            messages=messages,
+            model="llama-3.3-70b-versatile",
+            temperature=0,
+            max_tokens=1000
+        )
+        cevap = completion.choices[0].message.content
+        return cevap, docs
+    except Exception as e:
+        return f"Şu an yanıt veremiyorum. Hata: {str(e)}", None
 
 # --- ANA EKRAN ---
 st.title("🎓 MEB Yönetmelik Asistanı")
+st.info("Sadece MEB Ortaöğretim Kurumları Yönetmeliği hakkında resmi bilgi verir.")
 
+# Sohbet geçmişini ekrana bas
 for msg in st.session_state.conversation:
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
 
-if prompt := st.chat_input("Soru sorun..."):
+# Kullanıcı girişi
+if prompt := st.chat_input("Sorunuzu buraya yazın (Örn: Geç kalma kuralı nedir?)..."):
     st.session_state.conversation.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.write(prompt)
 
     with st.chat_message("assistant"):
-        cevap, kaynaklar = okul_asistani_sorgula(prompt)
-        st.markdown(cevap)
-        
-        if kaynaklar:
-            with st.expander("📚 Kaynak Yönetmelik Metni"):
-                for k in kaynaklar:
-                    st.caption(k.page_content)
+        with st.spinner("Mevzuat inceleniyor..."):
+            cevap, kaynaklar = okul_asistani_sorgula(prompt)
+            st.markdown(cevap)
+            
+            if kaynaklar:
+                with st.expander("📚 Kaynak Yönetmelik Metinleri"):
+                    for k in kaynaklar:
+                        st.caption(k.page_content)
         
         st.session_state.conversation.append({"role": "assistant", "content": cevap})
