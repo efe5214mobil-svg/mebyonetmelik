@@ -29,21 +29,26 @@ dersprogram_klasor = "dersprogram_dosyasi"
 
 # Klasördeki tüm PNG dosyalarını tarayıp sınıf isimleri ve dosya yolu eşlemesi oluştur
 siniflar = []
-dosya_dict = {}  # "gösterim" -> "dosya yolu" eşlemesi
+dosya_dict = {}  # "sınıf" -> "dosya yolu"
 
 if os.path.exists(dersprogram_klasor):
     for dosya in os.listdir(dersprogram_klasor):
         if dosya.lower().endswith(".png"):
-            # Dosya adını normalize et
             sinif = dosya.replace(".png", "").upper().replace(" ", "")
             siniflar.append(sinif)
-            dosya_dict[sinif] = os.path.join(dersprogram_klasor, dosya)  # gerçek dosya yolu
+            dosya_dict[sinif] = os.path.join(dersprogram_klasor, dosya)
     siniflar = sorted(siniflar)
 else:
     st.sidebar.warning(f"📂 Klasör bulunamadı: {dersprogram_klasor}")
 
-# Sidebar selectbox'ta 9I, 10 gibi gösterimleri boşluklu yap
-secim_gosterim = [s[0] + " " + s[1] if len(s) == 2 else s for s in siniflar]  # örn: 9I -> 9 I
+# Sidebar selectbox'ta 9A, 10 gibi gösterimleri "9 - A" gibi yap
+def secim_gosterim_func(s):
+    if len(s) == 2:
+        return f"{s[0]} - {s[1]}"
+    return s
+
+secim_gosterim = [secim_gosterim_func(s) for s in siniflar]
+
 if siniflar:
     secim_index = st.sidebar.selectbox(
         "Sınıfı seçin:",
@@ -94,10 +99,8 @@ def okul_asistani_sorgula(soru):
     if uygunsuz_mu(soru):
         return "⚠️ Bu soru uygun değil. Lütfen yalnızca MEB yönetmeliği ile ilgili resmi sorular sorun.", None, None
 
-    # 🔍 arama sorgusu
     arama_sorgusu = f"{soru} meb yönetmelik maddesi devamsızlık şartları"
 
-    # 🔥 vektör DB arama
     docs = vector_db.similarity_search_with_score(arama_sorgusu, k=3)
     docs = sorted(docs, key=lambda x: x[1])[:3]
     docs = [doc[0] for doc in docs]
@@ -105,10 +108,8 @@ def okul_asistani_sorgula(soru):
     if not docs:
         return "Veri bulunamadı.", None, None
 
-    # 🔥 bağlam oluştur
     baglam = "\n\n".join([doc.page_content[:500] for doc in docs])
 
-    # 🤖 AI çağrısı için mesajlar
     messages = [
         {"role": "system", "content": """
 Sen MEB yönetmeliği uzmanısın.
@@ -123,13 +124,11 @@ Kurallar:
 """}
     ]
 
-    # Önceki sohbeti ekle
     for msg in st.session_state.conversation:
         messages.append(msg)
 
     messages.append({"role": "user", "content": f"{baglam}\n\nSoru: {soru}"})
 
-    # 🔒 Groq çağrısını try/except ile güvenli yap
     try:
         chat_completion = client.chat.completions.create(
             messages=messages,
@@ -149,11 +148,9 @@ Kurallar:
 
     cevap = temizle_cevap(cevap)
 
-    # 📝 Session state güncelle
     st.session_state.conversation.append({"role": "user", "content": soru})
     st.session_state.conversation.append({"role": "assistant", "content": cevap})
 
-    # 📚 Kaynak ekleme ve tablo oluşturma
     tablo_data = {"Madde Özeti": [doc.page_content[:100]+"..." for doc in docs]}
     tablo_df = pd.DataFrame(tablo_data)
     kaynaklar = [doc.page_content[:200] for doc in docs]
