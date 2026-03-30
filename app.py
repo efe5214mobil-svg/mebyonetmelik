@@ -27,25 +27,31 @@ st.info("⚠️ Sadece MEB yönetmeliği ile ilgili sorular sorabilirsiniz. Uygu
 st.sidebar.header("📌 Sınıf Ders Programı")
 dersprogram_klasor = "dersprogram_dosyasi"
 
-# Klasördeki tüm PNG dosyalarını tarayıp sınıf isimleri oluştur
+# Klasördeki tüm PNG dosyalarını tarayıp sınıf isimleri ve dosya yolu eşlemesi oluştur
 siniflar = []
+dosya_dict = {}  # "gösterim" -> "dosya yolu" eşlemesi
+
 if os.path.exists(dersprogram_klasor):
     for dosya in os.listdir(dersprogram_klasor):
         if dosya.lower().endswith(".png"):
-            sinif = dosya.replace(".png", "").upper()  # 9A.png -> 9A
+            # Dosya adını normalize et
+            sinif = dosya.replace(".png", "").upper().replace(" ", "")
             siniflar.append(sinif)
+            dosya_dict[sinif] = os.path.join(dersprogram_klasor, dosya)  # gerçek dosya yolu
     siniflar = sorted(siniflar)
 else:
     st.sidebar.warning(f"📂 Klasör bulunamadı: {dersprogram_klasor}")
 
-# Sidebar selectbox'ta 9I gibi gösterimleri 9 I yap
-secim_gosterim = [s[0] + " " + s[1] for s in siniflar] if siniflar else []
-
+# Sidebar selectbox'ta 9I, 10 gibi gösterimleri boşluklu yap
+secim_gosterim = [s[0] + " " + s[1] if len(s) == 2 else s for s in siniflar]  # örn: 9I -> 9 I
 if siniflar:
-    secim_index = st.sidebar.selectbox("Sınıfı seçin:", range(len(secim_gosterim)), format_func=lambda x: secim_gosterim[x])
-    secim = siniflar[secim_index]  # dosya adı eşleşmesi için orijinal
-    dosya_adi = secim + ".png"
-    dosya_yolu = os.path.join(dersprogram_klasor, dosya_adi.lower())  # küçük harf ile dosya yolu
+    secim_index = st.sidebar.selectbox(
+        "Sınıfı seçin:",
+        range(len(secim_gosterim)),
+        format_func=lambda x: secim_gosterim[x]
+    )
+    secim = siniflar[secim_index]
+    dosya_yolu = dosya_dict[secim]
 
     if os.path.exists(dosya_yolu):
         img = Image.open(dosya_yolu)
@@ -132,7 +138,6 @@ Kurallar:
             max_tokens=500
         )
 
-        # Güvenli çekme
         if hasattr(chat_completion.choices[0], "message") and hasattr(chat_completion.choices[0].message, "content"):
             cevap = chat_completion.choices[0].message.content
         elif hasattr(chat_completion.choices[0], "text"):
@@ -163,7 +168,6 @@ for msg in st.session_state.conversation:
 
 if prompt := st.chat_input("Sorunuzu yazın:"):
     with st.spinner("Yanıt hazırlanıyor..."):
-        # Kullanıcının mesajını chat'te göster
         with st.chat_message("user"):
             st.markdown(prompt)
         cevap, tablo_df, kaynaklar = okul_asistani_sorgula(prompt)
