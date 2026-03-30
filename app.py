@@ -4,6 +4,7 @@ from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from dotenv import load_dotenv
 import os
+import re
 
 # 🔐 .env yükle
 load_dotenv()
@@ -17,6 +18,7 @@ client = Groq(api_key=api_key)
 
 # 🎯 Başlık
 st.title("MEB Yönetmelik Asistanı - Sohbet Hafızalı")
+st.info("⚠️ Sadece MEB yönetmeliği ile ilgili sorular sorabilirsiniz. Uygunsuz sorular yanıtlanmayacaktır.")
 
 # 🧠 VECTOR DB
 @st.cache_resource
@@ -34,13 +36,21 @@ vector_db = load_vector_db()
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
 
+# 🔄 Tekrarlanan sayıları ve saçma tekrarları temizle
+def temizle_cevap(cevap):
+    # Tekrarlanan sayıları kaldır (örnek: 2005/ 2005/ 2005 -> 2005)
+    cevap = re.sub(r'(\b\d{2,4}\b)(?:/\s*\1)+', r'\1', cevap)
+    # Tekrarlanan boşlukları temizle
+    cevap = re.sub(r'\s{2,}', ' ', cevap)
+    return cevap
+
 # 🤖 SORGULAMA
 def okul_asistani_sorgula(soru):
     # 🔍 arama sorgusu
     arama_sorgusu = f"{soru} meb yönetmelik maddesi devamsızlık şartları"
 
     # 🔥 vektör DB arama
-    docs = vector_db.similarity_search_with_score(arama_sorgusu, k=5)
+    docs = vector_db.similarity_search_with_score(arama_sorgusu, k=3)
     docs = sorted(docs, key=lambda x: x[1])[:3]
     docs = [doc[0] for doc in docs]
 
@@ -58,7 +68,10 @@ Kurallar:
 - Sadece verilen bağlama göre cevap ver
 - Eğer madde varsa belirt
 - En yakın bilgiyi kullan
-- "bulunamadı" deme
+- "Bulunamadı" deme
+- Cevapta küfür, hakaret, siyaset, din, ırk, cinsiyet ile ilgili içerik olamaz
+- Cevap sadece resmi MEB yönetmeliği ile ilgili olmalı
+- Anlamsız tekrarlar ve saçma ifadeler kullanma
 """}
     ]
 
@@ -76,6 +89,7 @@ Kurallar:
     )
 
     cevap = chat_completion.choices[0].message.content
+    cevap = temizle_cevap(cevap)
 
     # 📝 Session state güncelle
     st.session_state.conversation.append({"role": "user", "content": soru})
