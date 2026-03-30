@@ -32,7 +32,6 @@ st.markdown("""
         color: white !important;
         border: 1px solid #444 !important;
     }
-    /* Tabloyu koyu temaya uyarla */
     .stTable {
         background-color: rgba(255, 255, 255, 0.05);
         color: white;
@@ -54,20 +53,15 @@ vector_db = load_vector_db()
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
 
-# --- GÖRSEL ÖZET FONKSİYONU (Çizili/Tablolu Gösterim) ---
+# --- GÖRSEL ÖZET FONKSİYONU ---
 def gorsel_mevzuat_ozeti(docs):
-    """Gelen kaynak dökümanları temiz bir tabloya dönüştürür."""
     data = []
     for doc in docs:
         content = doc.page_content
-        # Madde numarasını metin içinden bul
         madde_match = re.search(r"MADDE\s+\d+", content, re.IGNORECASE)
         madde_no = madde_match.group(0) if madde_match else "Genel Hüküm"
-        
-        # İçeriği temizle ve ilk 200 karakteri al
         temiz_icerik = content.replace("\n", " ").strip()
         ozet = temiz_icerik[:200] + "..." if len(temiz_icerik) > 200 else temiz_icerik
-        
         data.append({"Dayanak": madde_no, "Resmi İçerik Özeti": ozet})
     
     df = pd.DataFrame(data)
@@ -101,13 +95,16 @@ if os.path.exists(dersprogram_klasor):
         secilen_sinif = st.sidebar.selectbox("Sınıf Seçin:", sirali_isimler)
         st.sidebar.image(Image.open(dosya_haritasi[secilen_sinif]), use_container_width=True)
 
-# 🛡️ GİZLİ GÜVENLİK FİLTRESİ (Base64)
+# 🛡️ MAKSİMUM GÜVENLİK FİLTRESİ (Base64)
 def uygunsuz_mu(soru):
-    data_enc = "a3VmdXIsYXJnbyxzaXlhc2V0LGRpbixpcmssaGFrYXJldCxwYXJ0aSxzZXgsc2Vrcyxwb3JubyxjaXBsYWssbWVtZSxnb3Qsc2lrLGFtayxwaXBpLHRhY2l6LG11c3RlaGNlbixnYXksbGV6Yml5ZW4sZmV0aXNsdWssdmFnaW5hLHBlbmlzLGVzY29ydCxuYWJlcixuYXNpbHNpbixzZWxhbSxtYWMsaGF2YSxmZW5lcmJhaGNlLGdhbGF0YXNhcmF5"
+    # Bu liste; küfür, ırkçılık, +18 ve hakaret içeren tüm kelimelerin Base64 halidir.
+    data_enc = "a3VmdXIsYXJnbyxzaXlhc2V0LGRpbixpcmssaGFrYXJldCxwYXJ0aSxzZXgsc2Vrcyxwb3JubyxjaXBsYWssbWVtZSxnb3Qsc2lrLGFtayxwaXBpLHRhY2l6LG11c3RlaGNlbixnYXksbGV6Yml5ZW4sZmV0aXNsdWssdmFnaW5hLHBlbmlzLGVzY29ydCxuYWJlcixuYXNpbHNpbixzZWxhbSxtYWMsaGF2YSxmZW5lcmJhaGNlLGdhbGF0YXNhcmF5LG9jLGFtLGdvdCxwaWNoLHNpY21payx5YXJyYWssaXJramksZmFzaXN0LGthem9rLGdhdnVy"
     yasakli_liste = base64.b64decode(data_enc).decode('utf-8').split(',')
-    s = soru.lower()
-    if any(k in s for k in yasakli_liste):
-        return True, "⚠️ **Uyarı:** Girdiğiniz ifade akademik etik kurallara veya mevzuat kapsamına uygun değildir."
+    s = soru.lower().strip()
+    
+    for kelime in yasakli_liste:
+        if kelime in s: # Kelime cümlenin herhangi bir yerinde geçiyorsa blokla
+            return True, "⚠️ **Güvenlik Engeli:** Girdiğiniz ifade akademik etik kurallara, topluluk ilkelerine veya MEB yönetmelik kapsamına uygun değildir."
     return False, ""
 
 # 🤖 SORGULAMA (MEB Yönetmelik Uzmanı)
@@ -121,14 +118,15 @@ def okul_asistani_sorgula(soru):
     messages = [
         {
             "role": "system", 
-            "content": """Sen resmi bir MEB Yönetmelik Asistanısın. 
+            "content": """Sen Türkiye Cumhuriyeti MEB Yönetmelik Asistanısın. 
+            Görevin SADECE okul yönetmeliği, sınavlar, devamsızlık ve disiplin gibi konularda bilgi vermektir.
             
             KESİN KURALLAR:
-            1. 'Evet' veya 'Hayır' diyerek söze başlama. Doğrudan döküman verisini açıkla.
-            2. 'responsibility' gibi yabancı terimler kullanma. Sadece 'Sorumluluk Sınavı' veya 'Sorumlu Geçme' terimlerini kullan.
-            3. Özürlü devamsızlık sınırı en fazla 20 GÜNDÜR. 
-            4. Ortalaması 50 altı olanlar en fazla 3 dersten 'Sorumlu' geçebilir, fazlası sınıf tekrarıdır.
-            5. Cevapların resmi, ciddi ve madde numaralarına dayalı olmalıdır."""
+            1. Siyaset, din, ırkçılık, cinsellik veya hakaret içeren hiçbir konuya girme.
+            2. 'Evet' veya 'Hayır' diyerek başlama. Direkt resmi veriyi paylaş.
+            3. 'Sorumluluk Sınavı' gibi Türkçe terimler kullan.
+            4. Özürlü devamsızlık sınırı 20 GÜNDÜR. Toplam 30 gündür.
+            5. Sınıf geçme barajı 50 ortalamadır. 3'ten fazla zayıfı olan (ortalama 50 altıysa) kalır."""
         }
     ]
     messages.extend(st.session_state.conversation[-2:])
@@ -143,40 +141,39 @@ def okul_asistani_sorgula(soru):
         )
         return completion.choices[0].message.content, docs
     except:
-        return "Sistem şu an yanıt veremiyor, lütfen kurumsal çerçevede tekrar deneyin.", None
+        return "Sistem şu an meşgul, lütfen yönetmelik çerçevesinde tekrar deneyin.", None
 
 # --- ANA EKRAN ---
 st.title("🎓 MEB Yönetmelik Asistanı")
+st.caption("Resmi Ortaöğretim Kurumları Yönetmeliği Veri Tabanı")
 
 with st.expander("❓ Sıkça Sorulan Sorular"):
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("**Devamsızlık ve Sorumluluk**")
-        st.write("- Özürlü devamsızlık sınırı 20 gün mü?")
-        st.write("- Ortalamam 50 altındaysa sorumlu geçebilir miyim?")
+        st.write("- Özürlü devamsızlık hakkı kaç gündür?")
+        st.write("- Ortalamam 50 altındaysa sorumlu geçer miyim?")
     with c2:
         st.markdown("**Disiplin ve Kurallar**")
         st.write("- Okulda telefon yakalatmanın cezası nedir?")
-        st.write("- Sınıf tekrarı hangi durumlarda yapılır?")
+        st.write("- Nakil şartları nelerdir?")
 
 for msg in st.session_state.conversation:
     with st.chat_message(msg["role"]): st.write(msg["content"])
 
-if prompt := st.chat_input("Yönetmelik sorunuzu buraya yazın..."):
+if prompt := st.chat_input("Yönetmelik sorunuzu yazın..."):
     st.session_state.conversation.append({"role": "user", "content": prompt})
     with st.chat_message("user"): st.write(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Resmi mevzuat belgeleri analiz ediliyor..."):
+        with st.spinner("Mevzuat inceleniyor..."):
             cevap, kaynaklar = okul_asistani_sorgula(prompt)
             st.markdown(cevap)
             
             if kaynaklar:
                 with st.expander("📖 Dayanak Yönetmelik Maddeleri (Görsel Analiz)"):
-                    # Çizili/Tablolu gösterim
                     gorsel_mevzuat_ozeti(kaynaklar)
                     st.divider()
-                    # Ham metin gösterimi
                     for k in kaynaklar:
                         st.caption(f"📍 {k.page_content}")
         
