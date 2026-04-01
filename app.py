@@ -60,59 +60,38 @@ def veri_tabanini_yukle():
 
 vektor_tabani = veri_tabanini_yukle()
 
-# 🛡️ TAM ZIRHLI GÜVENLİK SÜZGECİ (Küfür, Cinsellik, Laubali Hitap, Kişisel Sorular)
+# 🛡️ GÜVENLİK SÜZGECİ
 def suzgec_kontrolu(metin):
     karakter_haritasi = {
         '1': 'i', '0': 'o', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', 
         '@': 'a', '$': 's', '€': 'e', '!': 'i'
     }
-    
     temiz_metin = metin.lower()
     for eski, yeni in karakter_haritasi.items():
         temiz_metin = temiz_metin.replace(eski, yeni)
-    
-    # Harf ve rakam dışındaki her şeyi silerek hileleri engelle
     temiz_metin = re.sub(r'[^a-z0-9çşğüöı]', '', temiz_metin)
     
     yasakli_kelimeler = [
-        # Küfür & Argo
         "oc", "aq", "amk", "amq", "pic", "got", "sik", "amc", "yarrak", "fassak", "tassak", "dassak", "orospu", "fahise",
-        # Laubali Hitap & Flörtöz Yaklaşım
         "bebegim", "askim", "canim", "yavrum", "balim", "guzelim", "bitanem", "sevgilim",
-        # Kişisel / Cinsiyet Soruları
         "cinsiyetin", "kadinmisin", "erkekmisin", "nerelisin", "kacyasindasin", "sevgilinvarmi",
-        # Cinsellik & Yönelim
         "gay", "lezbiyen", "lgbt", "travesti", "seks", "sex", "porno", "vajina", "penis", "meme",
-        # Siyaset & Diğer
         "siyaset", "parti", "teror", "serefsiz", "gerizekali"
     ]
-    
     return any(yasakli in temiz_metin for yasakli in yasakli_kelimeler)
 
 if "sohbet_gecmisi" not in st.session_state:
     st.session_state.sohbet_gecmisi = []
 
-# 🤖 Yanıt Oluşturucu (Tüm Kurallar Dahil)
+# 🤖 Yanıt Oluşturucu
 def cevap_olustur(soru):
     ilgili_belgeler = vektor_tabani.similarity_search(soru, k=5)
     kaynak_metin = "\n\n".join([belge.page_content for belge in ilgili_belgeler])
     
     iletiler = [{
         "role": "system", 
-        "content": """Sen uzman bir MEB Mevzuat Asistanısın. 
-        GÖREVİN: Sadece MEB yönetmelikleri hakkında bilgi vermek. Kişisel sorulara veya laubali hitaplara cevap verme.
-        ÖNEMLİ: Tamamen Türkçe ifadeler kullan. Teknik tablo veya madde referansı verme.
-        
-        SABİT MEVZUAT BİLGİLERİ:
-        - Ders Süresi: Okulda 40, işletmede 60 dk.
-        - Yaş & Evlilik: Kayıt günü <18 yaş olmalı. Evli olanlar veya öğrenciyken evlenenler Açık Lise'ye gider.
-        - Devamsızlık: Özürsüz 10 gün, toplam 30 gün sınırı. (Ağır hastalık/nakil durumunda toplam 60 gün).
-        - Geç Gelme: Sadece 1. ders saati için geçerlidir, sonrası devamsızlıktır.
-        - Başarı: Geçme notu 50. Her dersten en az 2 yazılı. Sorumlu geçme max 3 ders. 6+ zayıf sınıf tekrarıdır.
-        - Beceri Sınavı: %80 sınav + %20 iş dosyası.
-        - Nakil: Aralık ve Mayıs hariç her ayın ilk iş günü.
-        - Ödül: Teşekkür (70.00-84.99), Takdir (85.00+).
-        - Disiplin: Kopya ve sigara kullanımı 'Kınama' cezasıdır."""
+        "content": """Sen uzman bir MEB Mevzuat Asistanısın. GÖREVİN: Sadece MEB yönetmelikleri hakkında bilgi vermek. 
+        Kişisel sorulara veya laubali hitaplara cevap verme. Tamamen Türkçe ifadeler kullan. Teknik tablo verme."""
     }]
     
     for ileti in st.session_state.sohbet_gecmisi[-4:]:
@@ -144,25 +123,40 @@ with sutun3:
     st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">🎓 Başarı & Nakil</div><div class="kategori-maddesi">• Kaç zayıfla kalınır?<br>• Beceri sınavı yüzdesi?</div></div>', unsafe_allow_html=True)
 st.markdown("---")
 
+# Eski sohbetleri göster
 for ileti in st.session_state.sohbet_gecmisi:
     with st.chat_message(ileti["role"]):
         st.markdown(ileti["content"])
 
+# Yeni girdi alanı
 if girdi := st.chat_input("Yönetmelik hakkında bir soru sorun..."):
     
     if suzgec_kontrolu(girdi):
         uyari_alani = st.empty()
-        uyari_alani.error("⚠️ Uyarı: İletiniz topluluk kurallarına aykırı veya uygunsuz içerik barındırdığı için engellenmiştir.")
+        uyari_alani.error("⚠️ Uyarı: İletiniz topluluk kurallarına aykırı olduğu için engellenmiştir.")
         time.sleep(3) 
         uyari_alani.empty() 
         st.rerun() 
     else:
+        # Soruyu ekrana bas ve kaydet
         st.session_state.sohbet_gecmisi.append({"role": "user", "content": girdi})
         with st.chat_message("user"):
             st.markdown(girdi)
 
+        # Yanıtı oluştur ve ekrana bas
         with st.chat_message("assistant"):
             with st.spinner("⚖️ İnceleniyor..."):
                 cevap = cevap_olustur(girdi)
                 st.markdown(cevap)
                 st.session_state.sohbet_gecmisi.append({"role": "assistant", "content": cevap})
+        
+        # --- ⏳ 15 SANİYE BEKLEME VE SİLME ---
+        sayac_alani = st.empty()
+        for i in range(15, 0, -1):
+            sayac_alani.info(f"⏳ Gizlilik gereği bu konuşma {i} saniye sonra silinecektir...")
+            time.sleep(1)
+        
+        # Hafızayı temizle ve sayfayı yenile
+        st.session_state.sohbet_gecmisi = []
+        sayac_alani.empty()
+        st.rerun()
