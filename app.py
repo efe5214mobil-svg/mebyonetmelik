@@ -60,75 +60,65 @@ def veri_tabanini_yukle():
 
 vektor_tabani = veri_tabanini_yukle()
 
-# 🛡️ ÇELİK ZIRHLI GÜVENLİK SÜZGECİ
+# 🛡️ TAM ZIRHLI GÜVENLİK SÜZGECİ (Küfür, Cinsellik, Laubali Hitap, Kişisel Sorular)
 def suzgec_kontrolu(metin):
-    karakter_haritasi = {'1': 'i', '0': 'o', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '@': 'a', '$': 's'}
+    karakter_haritasi = {
+        '1': 'i', '0': 'o', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', 
+        '@': 'a', '$': 's', '€': 'e', '!': 'i'
+    }
+    
     temiz_metin = metin.lower()
     for eski, yeni in karakter_haritasi.items():
         temiz_metin = temiz_metin.replace(eski, yeni)
     
-    # Hileleri engellemek için metni sıkıştır
-    sikistirilmis_metin = re.sub(r'[^a-z0-9çşğüöı]', '', temiz_metin)
+    # Harf ve rakam dışındaki her şeyi silerek hileleri engelle
+    temiz_metin = re.sub(r'[^a-z0-9çşğüöı]', '', temiz_metin)
     
     yasakli_kelimeler = [
-        "oc", "aq", "amk", "amq", "pic", "got", "sik", "amc", "yarrak", "orospu", "bebegim", "askim",
-        "nigga", "zenci", "cikolata", "irkci", "yahudi", "ermeni", "nazi",
-        "erdogan", "tayyip", "rte", "cumhurbaskani", "akp", "chp", "mhp", "siyaset", "parti", "darbe",
-        "mahmud", "charles", "suleyman", "fatih", "kanuni", "padisah", "kral", "imparator", "osmanli",
-        "ataturk", "hitler", "stalin", "lenin", "modernizm", "narsizm", "narsist", "nihilizm", 
-        "ideoloji", "1945", "1939", "savas", "gay", "lezbiyen", "lgbt", "seks", "porno"
+        # Küfür & Argo
+        "oc", "aq", "amk", "amq", "pic", "got", "sik", "amc", "yarrak", "fassak", "tassak", "dassak", "orospu", "fahise",
+        # Laubali Hitap & Flörtöz Yaklaşım
+        "bebegim", "askim", "canim", "yavrum", "balim", "guzelim", "bitanem", "sevgilim",
+        # Kişisel / Cinsiyet Soruları
+        "cinsiyetin", "kadinmisin", "erkekmisin", "nerelisin", "kacyasindasin", "sevgilinvarmi",
+        # Cinsellik & Yönelim
+        "gay", "lezbiyen", "lgbt", "travesti", "seks", "sex", "porno", "vajina", "penis", "meme",
+        # Siyaset & Diğer
+        "siyaset", "parti", "teror", "serefsiz", "gerizekali"
     ]
-    return any(yasakli in sikistirilmis_metin for yasakli in yasakli_kelimeler)
+    
+    return any(yasakli in temiz_metin for yasakli in yasakli_kelimeler)
 
 if "sohbet_gecmisi" not in st.session_state:
     st.session_state.sohbet_gecmisi = []
 
-# 🤖 Yanıt Oluşturucu (TÜM YÖNETMELİK BURADA)
+# 🤖 Yanıt Oluşturucu (Tüm Kurallar Dahil)
 def cevap_olustur(soru):
     ilgili_belgeler = vektor_tabani.similarity_search(soru, k=5)
     kaynak_metin = "\n\n".join([belge.page_content for belge in ilgili_belgeler])
     
     iletiler = [{
         "role": "system", 
-        "content": """Sen uzman bir MEB Mevzuat Asistanısın. Sadece aşağıdaki yönetmelik kurallarına göre cevap ver:
-
-        1. GENEL BİLGİLER:
-        - Ders saati okulda 40 dk, işletmelerde 60 dk'dır.
-        - Ders yılı: Başlangıçtan kesildiği tarihe kadardır.
-        - Kayıt: 18 yaşını bitirmemiş olmak şarttır.
-        - Evlilik: Evli olanların kaydı yapılmaz, öğrenciyken evlenenler Açık Lise'ye aktarılır.
-        - Hazırlık: Üst üste 2 yıl başarısız olan 9. sınıfa (hazırlık olmayan) nakledilir.
-
-        2. DEVAMSIZLIK:
-        - Özürsüz sınır 10 gündür. 10 günü geçen başarısız sayılır.
-        - Toplam sınır (özürlü+özürsüz) 30 gündür.
-        - İstisna: Organ nakli, ağır hastalık gibi hallerde toplam sınır 60 gündür.
-        - Geç gelme: Sadece 1. ders saati için geçerlidir, sonrası devamsızlıktır.
-
-        3. SINIF GEÇME & BAŞARI:
-        - Yazılı sınav: Her dersten en az 2 yazılı yapılır.
-        - Başarı puanı: Geçme notu en az 50'dir.
-        - Sorumlu geçme: En fazla 3 dersten zayıfı olan sorumlu geçer.
-        - Sınıf tekrarı: Başarısız ders sayısı 6'yı geçerse sınıf tekrar edilir.
-        - Beceri sınavı: %80 sınav puanı + %20 iş dosyası.
-
-        4. NAKİL & DERS SEÇİMİ:
-        - Nakil: Aralık ve Mayıs hariç her ayın ilk iş günü başvurulur.
-        - Ders seçimi (9. Sınıf): Ders yılının ilk haftasında yapılır.
-
-        5. DİSİPLİN & ÖDÜL:
-        - Cezalar: Kınama, kısa süreli uzaklaştırma, okul değiştirme, örgün eğitim dışına çıkarma.
-        - Kopya ve Sigara: 'Kınama' cezası gerektirir.
-        - Teşekkür: 70,00 - 84,99 arası ortalama.
-        - Takdir: 85,00 ve üzeri ortalama.
-
-        KESİN YASAKLAR: Siyaset, tarih, felsefi akımlar ve uygunsuz hitaplara cevap verme. Daima profesyonel Türkçe kullan."""
+        "content": """Sen uzman bir MEB Mevzuat Asistanısın. 
+        GÖREVİN: Sadece MEB yönetmelikleri hakkında bilgi vermek. Kişisel sorulara veya laubali hitaplara cevap verme.
+        ÖNEMLİ: Tamamen Türkçe ifadeler kullan. Teknik tablo veya madde referansı verme.
+        
+        SABİT MEVZUAT BİLGİLERİ:
+        - Ders Süresi: Okulda 40, işletmede 60 dk.
+        - Yaş & Evlilik: Kayıt günü <18 yaş olmalı. Evli olanlar veya öğrenciyken evlenenler Açık Lise'ye gider.
+        - Devamsızlık: Özürsüz 10 gün, toplam 30 gün sınırı. (Ağır hastalık/nakil durumunda toplam 60 gün).
+        - Geç Gelme: Sadece 1. ders saati için geçerlidir, sonrası devamsızlıktır.
+        - Başarı: Geçme notu 50. Her dersten en az 2 yazılı. Sorumlu geçme max 3 ders. 6+ zayıf sınıf tekrarıdır.
+        - Beceri Sınavı: %80 sınav + %20 iş dosyası.
+        - Nakil: Aralık ve Mayıs hariç her ayın ilk iş günü.
+        - Ödül: Teşekkür (70.00-84.99), Takdir (85.00+).
+        - Disiplin: Kopya ve sigara kullanımı 'Kınama' cezasıdır."""
     }]
     
-    for ileti in st.session_state.sohbet_gecmisi[-2:]:
+    for ileti in st.session_state.sohbet_gecmisi[-4:]:
         iletiler.append(ileti)
     
-    iletiler.append({"role": "user", "content": f"BAĞLAM:\n{kaynak_metin}\n\nSORU: {soru}"})
+    iletiler.append({"role": "user", "content": f"KAYNAK VERİLER:\n{kaynak_metin}\n\nKULLANICI SORUSU: {soru}"})
     
     yanit = istemci.chat.completions.create(
         messages=iletiler, 
@@ -145,13 +135,13 @@ st.link_button("📅 Sınıf Programı", "https://sinifprogrami.streamlit.app/")
 st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("### 💡 Hızlı Sorular")
-s1, s2, s3 = st.columns(3)
-with s1:
-    st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">📜 Kayıt & Disiplin</div><div class="kategori-maddesi">• Evlilik durumu?<br>• Kopya cezası?</div></div>', unsafe_allow_html=True)
-with s2:
-    st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">⏳ Devamsızlık</div><div class="kategori-maddesi">• 10/30 gün kuralı?<br>• Geç gelme sınırı?</div></div>', unsafe_allow_html=True)
-with s3:
-    st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">🎓 Başarı & Nakil</div><div class="kategori-maddesi">• Kaç zayıfla kalınır?<br>• Nakil dönemi?</div></div>', unsafe_allow_html=True)
+sutun1, sutun2, sutun3 = st.columns(3)
+with sutun1:
+    st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">📜 Kayıt & Disiplin</div><div class="kategori-maddesi">• Evlilik durumu ne olur?<br>• Kopya cezası nedir?</div></div>', unsafe_allow_html=True)
+with sutun2:
+    st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">⏳ Devamsızlık</div><div class="kategori-maddesi">• 30 gün kuralı nedir?<br>• Geç gelme sınırı?</div></div>', unsafe_allow_html=True)
+with sutun3:
+    st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">🎓 Başarı & Nakil</div><div class="kategori-maddesi">• Kaç zayıfla kalınır?<br>• Beceri sınavı yüzdesi?</div></div>', unsafe_allow_html=True)
 st.markdown("---")
 
 for ileti in st.session_state.sohbet_gecmisi:
@@ -162,9 +152,10 @@ if girdi := st.chat_input("Yönetmelik hakkında bir soru sorun..."):
     
     if suzgec_kontrolu(girdi):
         uyari_alani = st.empty()
-        uyari_alani.error("⚠️ Uyarı: İletiniz yönetmelik dışı veya uygunsuz içerik barındırdığı için engellenmiştir.")
-        time.sleep(2) 
+        uyari_alani.error("⚠️ Uyarı: İletiniz topluluk kurallarına aykırı veya uygunsuz içerik barındırdığı için engellenmiştir.")
+        time.sleep(3) 
         uyari_alani.empty() 
+        st.rerun() 
     else:
         st.session_state.sohbet_gecmisi.append({"role": "user", "content": girdi})
         with st.chat_message("user"):
@@ -175,4 +166,3 @@ if girdi := st.chat_input("Yönetmelik hakkında bir soru sorun..."):
                 cevap = cevap_olustur(girdi)
                 st.markdown(cevap)
                 st.session_state.sohbet_gecmisi.append({"role": "assistant", "content": cevap})
-                st.rerun()
