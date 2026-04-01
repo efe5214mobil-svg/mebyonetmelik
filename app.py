@@ -104,7 +104,7 @@ st.markdown("<div class='main-title'>🏛️ MEB Mevzuat Uzmanı</div>", unsafe_
 
 # 🚀 SAĞ ALT BUTON
 st.markdown('<div class="floating-button-container">', unsafe_allow_html=True)
-st.link_button("📅 Sınıf Programı", "https://senin-linkin-buraya.com")
+st.link_button("📅 Sınıf Programı", "https://sinifprogrami.streamlit.app/")
 st.markdown('</div>', unsafe_allow_html=True)
 
 # 💡 ÖNERİ SORU KARTLARI (Sohbet boşsa göster)
