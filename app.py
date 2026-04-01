@@ -1,7 +1,7 @@
 import streamlit as st
 from groq import Groq
 from langchain_community.vectorstores import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings 
+from langchain_huggingface import HuggingFaceEmbedembeddings 
 from dotenv import load_dotenv
 import os
 import re
@@ -60,36 +60,36 @@ def veri_tabanini_yukle():
 
 vektor_tabani = veri_tabanini_yukle()
 
-# 🛡️ ÇELİK ZIRHLI GÜVENLİK SÜZGECİ (Felsefi Akımlar ve Konu Dışı Sorgular Dahil)
+# 🛡️ ÇELİK ZIRHLI GÜVENLİK SÜZGECİ
 def suzgec_kontrolu(metin):
-    karakter_haritasi = {
-        '1': 'i', '0': 'o', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', 
-        '@': 'a', '$': 's', '€': 'e', '!': 'i'
-    }
+    # Karakter dönüşümü (Hileleri engellemek için)
+    karakter_haritasi = {'1': 'i', '0': 'o', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '@': 'a', '$': 's'}
     
     temiz_metin = metin.lower()
     for eski, yeni in karakter_haritasi.items():
         temiz_metin = temiz_metin.replace(eski, yeni)
     
-    # Hileli yazımları yakalamak için sembolleri temizle
-    temiz_metin = re.sub(r'[^a-z0-9çşğüöı]', '', temiz_metin)
+    # Boşlukları ve sembolleri kaldırarak kontrol et
+    sikistirilmis_metin = re.sub(r'[^a-z0-9çşğüöı]', '', temiz_metin)
     
     yasakli_kelimeler = [
-        # Küfür & Argo & Laubali
-        "oc", "aq", "amk", "amq", "pic", "got", "sik", "amc", "yarrak", "fassak", "tassak", "orospu", "bebegim", "askim",
+        # Küfür, Argo, Laubali
+        "oc", "aq", "amk", "amq", "pic", "got", "sik", "amc", "yarrak", "orospu", "bebegim", "askim",
         # Irkçılık & Ayrımcılık
-        "nigga", "niga", "zenci", "cikolata", "beyaz", "irkci", "kole", "yahudi", "ermeni", "rum",
-        # Siyaset & Tarih
-        "hitler", "adolf", "erdogan", "tayyip", "rte", "cumhurbaskani", "osmanli", "padisah", "akp", "chp", "mhp",
-        "siyaset", "parti", "teror", "darbe", "1945", "1939", "savas", "nazi",
-        # Felsefi/Modern Akımlar & Konu Dışı (İstediğin Kısım)
-        "modernizm", "narsizm", "narsist", "nihilizm", "ateizm", "deizm", "kapitalizm", "komunizm", "sosyalizm", 
-        "feminizm", "faşizm", "ideoloji", "akımlar",
-        # Cinsellik & Yönelim
-        "gay", "lezbiyen", "lgbt", "travesti", "seks", "sex", "porno", "vajina", "penis"
+        "nigga", "zenci", "cikolata", "irkci", "yahudi", "ermeni", "nazi",
+        # Siyaset & Devlet Büyükleri
+        "erdogan", "tayyip", "rte", "cumhurbaskani", "akp", "chp", "mhp", "siyaset", "parti", "darbe",
+        # Tarihsel Hükümdarlar & Hanedanlar (İstediğin Kısım)
+        "mahmud", "charles", "suleyman", "fatih", "kanuni", "padisah", "kral", "imparator", "osmanli", "bizans", "roma",
+        "iimahmud", "ivcharles", "ataturk", "hitler", "stalin", "lenin",
+        # Konu Dışı Akımlar
+        "modernizm", "narsizm", "narsist", "nihilizm", "ideoloji", "1945", "1939", "savas",
+        # Cinsellik
+        "gay", "lezbiyen", "lgbt", "seks", "sex", "porno", "vajina", "penis"
     ]
     
-    return any(yasakli in temiz_metin for yasakli in yasakli_kelimeler)
+    # Roma rakamı içeren kalıpları yakalamak için (Örn: "II. Mahmud" -> "iimahmud")
+    return any(yasakli in sikistirilmis_metin for yasakli in yasakli_kelimeler)
 
 if "sohbet_gecmisi" not in st.session_state:
     st.session_state.sohbet_gecmisi = []
@@ -102,16 +102,9 @@ def cevap_olustur(soru):
     iletiler = [{
         "role": "system", 
         "content": """Sen uzman bir MEB Mevzuat Asistanısın. 
-        SADECE yönetmelik bilgisi ver. Siyaset, felsefi akımlar (modernizm vb.), tarih, ırkçılık veya kişisel konulara asla girme.
-        Tamamen Türkçe konuş. Laubali hitaplardan kaçın.
-        
-        SABİT VERİLER:
-        - Ders: Okul 40, İşletme 60 dk.
-        - Yaş: <18. Evli=Açık Lise.
-        - Devamsızlık: Özürsüz 10, Toplam 30 (Hastalıkta 60).
-        - Başarı: Geçme 50. Yazılı en az 2. Sorumluluk max 3 ders. 6+ zayıf tekrar.
-        - Ödül: Teşekkür (70-84.99), Takdir (85+).
-        - Disiplin: Kopya/Sigara=Kınama. Nakil: Aral/May hariç her ay başı."""
+        SADECE okul yönetmeliği, dersler, devamsızlık ve disiplin kuralları hakkında bilgi ver. 
+        Tarih, siyaset, hükümdarlar veya felsefi akımlar hakkında konuşma. 
+        Daima Türkçe ve profesyonel bir dil kullan."""
     }]
     
     for ileti in st.session_state.sohbet_gecmisi[-4:]:
@@ -134,13 +127,13 @@ st.link_button("📅 Sınıf Programı", "https://sinifprogrami.streamlit.app/")
 st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("### 💡 Hızlı Sorular")
-sutun1, sutun2, sutun3 = st.columns(3)
-with sutun1:
+s1, s2, s3 = st.columns(3)
+with s1:
     st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">📜 Kayıt & Disiplin</div><div class="kategori-maddesi">• Evlilik durumu?<br>• Kopya cezası?</div></div>', unsafe_allow_html=True)
-with sutun2:
+with s2:
     st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">⏳ Devamsızlık</div><div class="kategori-maddesi">• 30 gün kuralı?<br>• Geç gelme sınırı?</div></div>', unsafe_allow_html=True)
-with sutun3:
-    st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">🎓 Başarı & Nakil</div><div class="kategori-maddesi">• Sınıf tekrarı sınırı?<br>• Beceri sınavı?</div></div>', unsafe_allow_html=True)
+with s3:
+    st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">🎓 Başarı & Nakil</div><div class="kategori-maddesi">• Sınıf tekrarı?<br>• Beceri sınavı?</div></div>', unsafe_allow_html=True)
 st.markdown("---")
 
 for ileti in st.session_state.sohbet_gecmisi:
@@ -150,10 +143,9 @@ for ileti in st.session_state.sohbet_gecmisi:
 if girdi := st.chat_input("Yönetmelik hakkında bir soru sorun..."):
     
     if suzgec_kontrolu(girdi):
-        # 🛡️ İHLAL DURUMUNDA UYARI VE OTOMATİK SİLME
         uyari_alani = st.empty()
-        uyari_alani.error("⚠️ Uyarı: İletiniz topluluk kurallarına aykırı, konu dışı veya uygunsuz içerik barındırdığı için sistem tarafından engellenmiştir.")
-        time.sleep(3) 
+        uyari_alani.error("⚠️ Uyarı: İletiniz yönetmelik dışı, siyasi veya tarihsel içerik barındırdığı için engellenmiştir.")
+        time.sleep(2) 
         uyari_alani.empty() 
         st.rerun() 
     else:
