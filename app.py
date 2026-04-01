@@ -20,8 +20,7 @@ st.markdown("""
     .stApp { font-family: 'Inter', sans-serif; }
     .main-title { font-size: 2.2rem; font-weight: 800; text-align: center; margin-bottom: 1.5rem; }
     
-    div[data-testid="stHeader"] { z-index: 1; }
-    
+    /* 🚀 Sınıf Programı Butonu (Sağ Altta Sabit) */
     .floating-button-container {
         position: fixed;
         bottom: 85px; 
@@ -41,6 +40,12 @@ st.markdown("""
         transition: 0.3s ease !important;
     }
     
+    .stLinkButton a:hover {
+        background-color: #E67E22 !important;
+        transform: scale(1.05);
+    }
+
+    /* Rehber Kartı Stili */
     .category-box {
         background-color: rgba(128, 128, 128, 0.05);
         border-radius: 15px;
@@ -50,6 +55,11 @@ st.markdown("""
     }
     .category-title { font-weight: bold; color: #FF4B4B; margin-bottom: 10px; font-size: 1.15rem; }
     .category-item { font-size: 0.88rem; margin-bottom: 6px; color: #444; }
+    
+    @media (prefers-color-scheme: dark) {
+        .category-item { color: #CCC; }
+        .category-box { background-color: rgba(255, 255, 255, 0.05); }
+    }
     
     [data-testid="stChatMessage"] { border-radius: 20px; border: 1px solid rgba(128, 128, 128, 0.15); }
 </style>
@@ -75,67 +85,87 @@ def uygunsuz_mu(soru):
 def sorgula(soru):
     docs = vector_db.similarity_search(soru, k=3)
     baglam = "\n\n".join([doc.page_content for doc in docs])
-    
+
     messages = [{
-        "role": "system", 
-        "content": """Sen MEB yönetmelik uzmanısın. Resmi bir dille, sorular.pdf verilerine göre yanıt ver.
+        "role": "system",
+        "content": """Sen MEB yönetmelik uzmanısın. Ağırbaşlı ve resmi bir dille cevap ver.
         [PDF VERİLERİ]:
-        - Devamsızlık: Özürsüz 10, Toplam 30 gün.
+        - Devamsızlık: Özürsüz 10, Toplam 30 gün. (İstisna: 60 gün)
         - Başarı: Geçme notu 50.
         - Sınıf Geçme: Max 3 zayıf sorumlu geçer, 6+ zayıf tekrar.
         - Ödül: Teşekkür 70+, Takdir 85+.
-        
-        ÖNEMLİ: Eğer soru yönetmelik dışıysa veya saçmaysa cevabına mutlaka 'KAPSAM_DISI' kelimesini ekle."""
+        - Disiplin: Kopya/Sigara = Kınama.
+        - Kayıt: Evli kayıt yapılamaz.
+
+        ÖNEMLİ: Eğer soru yönetmelikle ilgili değilse veya saçmaysa, cevabına mutlaka 'KAPSAM_DISI' kelimesini ekle."""
     }]
-    
+
     for msg in st.session_state.conversation[-4:]:
         messages.append(msg)
     messages.append({"role": "user", "content": f"BAĞLAM:\n{baglam}\n\nSORU: {soru}"})
-    
-    completion = client.chat.completions.create(messages=messages, model="llama-3.3-70b-versatile", temperature=0)
+
+    completion = client.chat.completions.create(
+        messages=messages,
+        model="llama-3.3-70b-versatile",
+        temperature=0
+    )
     return completion.choices[0].message.content, docs
 
 # --- ARAYÜZ ---
+
+# Başlık
 st.markdown("<div class='main-title'>🏛️ MEB Mevzuat Uzmanı</div>", unsafe_allow_html=True)
 
-# 🚀 TURUNCU BUTON (YÜZEN)
+# 🚀 SAĞ ALTTA YÜZEN BUTON
 st.markdown('<div class="floating-button-container">', unsafe_allow_html=True)
-st.link_button("📅 Sınıf Programı", "https://senin-linkin-buraya.com")
+st.link_button("📅 Sınıf Programı", "https://sinifprogrami.streamlit.app/")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 💡 ÖNERİ SORULAR (Expander içinde, her zaman erişilebilir)
-with st.expander("🔍 Neler Sorabilirsiniz? (Öneri Sorular)", expanded=not st.session_state.conversation):
+# 💡 Öneri Sorular (Sadece sohbet boşken görünür)
+if not st.session_state.conversation:
+    st.markdown("### 💡 Sorabileceğiniz Konular")
     c1, c2, c3 = st.columns(3)
-    with c1: st.markdown('<div class="category-box"><div class="category-title">📜 Disiplin</div><div class="category-item">• Kopya cezası?<br>• Sigara yasağı?</div></div>', unsafe_allow_html=True)
-    with c2: st.markdown('<div class="category-box"><div class="category-title">⏳ Devamsızlık</div><div class="category-item">• Özürsüz sınır?<br>• 30 gün kuralı?</div></div>', unsafe_allow_html=True)
-    with c3: st.markdown('<div class="category-box"><div class="category-title">🎓 Başarı</div><div class="category-item">• Kaç zayıf?<br>• Takdir puanı?</div></div>', unsafe_allow_html=True)
-
-st.divider()
+    with c1:
+        st.markdown('<div class="category-box"><div class="category-title">📜 Disiplin</div><div class="category-item">• Kopya cezası?<br>• Sigara yasağı?<br>• Kınama nedir?</div></div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown('<div class="category-box"><div class="category-title">⏳ Devamsızlık</div><div class="category-item">• Özürsüz sınır?<br>• 30 gün kuralı?<br>• Sağlık izni?</div></div>', unsafe_allow_html=True)
+    with c3:
+        st.markdown('<div class="category-box"><div class="category-title">🎓 Başarı</div><div class="category-item">• Kaç zayıfla kalınır?<br>• Takdir puanı?<br>• Nakil şartları?</div></div>', unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
 
 # 💬 Sohbet Akışı
 for msg in st.session_state.conversation:
     with st.chat_message(msg["role"]):
+        # KAPSAM_DISI etiketini gizle
         st.markdown(msg["content"].replace("KAPSAM_DISI", ""))
 
 # ⌨️ Giriş Alanı
 if prompt := st.chat_input("Sorunuzu buraya yazın..."):
+    
+    # Uygunsuz içerik kontrolü
     if uygunsuz_mu(prompt):
-        uyari = "⚠️ Lütfen topluluk kurallarına uygun ve sadece mevzuatla ilgili sorular sorunuz."
+        hata_mesaji = "⚠️ Lütfen topluluk kurallarına uygun ve sadece MEB yönetmeliği ile ilgili sorular sorunuz."
         st.session_state.conversation.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.markdown(prompt)
-        with st.chat_message("assistant"): st.markdown(uyari)
-        st.session_state.conversation.append({"role": "assistant", "content": uyari})
+        with st.chat_message("assistant"): st.markdown(hata_mesaji)
+        st.session_state.conversation.append({"role": "assistant", "content": hata_mesaji})
+    
     else:
         st.session_state.conversation.append({"role": "user", "content": prompt})
-        with st.chat_message("user"): st.markdown(prompt)
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
         with st.chat_message("assistant"):
             with st.spinner("⚖️ İnceleniyor..."):
                 raw_cevap, kaynaklar = sorgula(prompt)
+                
+                # Tablo ve içerik kontrolü
                 is_out_of_scope = "KAPSAM_DISI" in raw_cevap
                 clean_cevap = raw_cevap.replace("KAPSAM_DISI", "").strip()
+                
                 st.markdown(clean_cevap)
                 
+                # Sadece mevzuat dahilindeyse tabloyu göster
                 if kaynaklar and not is_out_of_scope:
                     st.markdown("---")
                     st.markdown("📑 **Yönetmelik Referans Tablosu**")
