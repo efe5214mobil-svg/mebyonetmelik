@@ -20,8 +20,6 @@ st.markdown("""
     .stApp { font-family: 'Inter', sans-serif; }
     .main-title { font-size: 2.2rem; font-weight: 800; text-align: center; margin-bottom: 1.5rem; }
     
-    div[data-testid="stHeader"] { z-index: 1; }
-    
     .floating-button-container {
         position: fixed;
         bottom: 85px; 
@@ -35,10 +33,9 @@ st.markdown("""
         border-radius: 25px !important;
         padding: 0.6rem 1.5rem !important;
         font-weight: 700 !important;
+        text-decoration: none !important;
         border: 2px solid white !important;
         box-shadow: 0 4px 15px rgba(0,0,0,0.2) !important;
-        text-decoration: none !important;
-        transition: 0.3s ease !important;
     }
 
     .category-box {
@@ -64,22 +61,37 @@ vector_db = load_vector_db()
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
 
-# 🤖 Sorgulama Fonksiyonu
+# 🤖 Sorgulama Fonksiyonu (PDF Verileri Geri Eklendi)
 def sorgula(soru):
     docs = vector_db.similarity_search(soru, k=3)
     baglam = "\n\n".join([doc.page_content for doc in docs])
     
-    # Sisteme "eğer bilgi bulamazsan veya saçma sorulursa KAPSAM_DISI yaz" talimatı verdik
-    messages = [{"role": "system", "content": """Sen MEB yönetmelik uzmanısın. 
-    Sadece MEB yönetmeliği ile ilgili sorulara cevap ver. 
-    Eğer soru yönetmelik dışıysa veya bağlamda bilgi yoksa cevabın sonuna 'KAPSAM_DISI' ekle."""}]
+    # PDF'deki sabit verileri system mesajına sabitledik
+    messages = [{
+        "role": "system", 
+        "content": """Sen MEB yönetmelik uzmanısın. Ağırbaşlı ve resmi bir dille cevap ver.
+        
+        [PDF KRİTİK VERİLERİ]:
+        - Devamsızlık: Özürsüz 10, Toplam 30 gün. (İstisna: 60 gün)
+        - Başarı: Geçme notu 50.
+        - Sınıf Geçme: Max 3 zayıf sorumlu geçer, 6+ zayıf tekrar.
+        - Ödül: Teşekkür 70+, Takdir 85+.
+        - Disiplin: Kopya/Sigara = Kınama.
+        - Kayıt: Evli kayıt yapılamaz.
+
+        ÖNEMLİ: Soru selamlaşma veya mevzuat dışı bir konuysa cevabın sonuna [KONU_DISI] etiketini ekle."""
+    }]
     
     for msg in st.session_state.conversation[-4:]:
         messages.append(msg)
     
     messages.append({"role": "user", "content": f"BAĞLAM:\n{baglam}\n\nSORU: {soru}"})
     
-    completion = client.chat.completions.create(messages=messages, model="llama-3.3-70b-versatile", temperature=0)
+    completion = client.chat.completions.create(
+        messages=messages, 
+        model="llama-3.3-70b-versatile", 
+        temperature=0
+    )
     return completion.choices[0].message.content, docs
 
 # --- ARAYÜZ ---
@@ -89,6 +101,7 @@ st.markdown('<div class="floating-button-container">', unsafe_allow_html=True)
 st.link_button("📅 Sınıf Programı", "https://senin-linkin-buraya.com")
 st.markdown('</div>', unsafe_allow_html=True)
 
+# Öneri Kartları
 if not st.session_state.conversation:
     st.markdown("### 💡 Sorabileceğiniz Konular")
     c1, c2, c3 = st.columns(3)
@@ -96,13 +109,12 @@ if not st.session_state.conversation:
     with c2: st.markdown('<div class="category-box"><div class="category-title">⏳ Devamsızlık</div><div class="category-item">• Özürsüz sınır?<br>• 30 gün kuralı?</div></div>', unsafe_allow_html=True)
     with c3: st.markdown('<div class="category-box"><div class="category-title">🎓 Başarı</div><div class="category-item">• Kaç zayıf?<br>• Takdir puanı?</div></div>', unsafe_allow_html=True)
 
-# 💬 Sohbet Akışı
+# Sohbet Akışı
 for msg in st.session_state.conversation:
     with st.chat_message(msg["role"]):
-        # KAPSAM_DISI etiketini kullanıcıya göstermiyoruz
-        st.markdown(msg["content"].replace("KAPSAM_DISI", ""))
+        st.markdown(msg["content"].replace("[KONU_DISI]", ""))
 
-# ⌨️ Giriş Alanı
+# Giriş
 if prompt := st.chat_input("Sorunuzu buraya yazın..."):
     st.session_state.conversation.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -110,16 +122,16 @@ if prompt := st.chat_input("Sorunuzu buraya yazın..."):
 
     with st.chat_message("assistant"):
         with st.spinner("⚖️ İnceleniyor..."):
-            raw_cevap, kaynaklar = sorgula(prompt)
+            cevap, kaynaklar = sorgula(prompt)
             
-            # Kontrol Mekanizması
-            is_kapsam_disi = "KAPSAM_DISI" in raw_cevap
-            temiz_cevap = raw_cevap.replace("KAPSAM_DISI", "").strip()
+            # Tablo gizleme kontrolü
+            is_off_topic = "[KONU_DISI]" in cevap
+            clean_cevap = cevap.replace("[KONU_DISI]", "").strip()
             
-            st.markdown(temiz_cevap)
+            st.markdown(clean_cevap)
             
-            # 📊 Sadece mevzuatla ilgiliyse tabloyu ver
-            if kaynaklar and not is_kapsam_disi:
+            # Sadece mevzuatla ilgiliyse tabloyu ver
+            if kaynaklar and not is_off_topic:
                 st.markdown("---")
                 st.markdown("📑 **İlgili Mevzuat Maddeleri**")
                 ref_df = pd.DataFrame({
@@ -128,4 +140,4 @@ if prompt := st.chat_input("Sorunuzu buraya yazın..."):
                 })
                 st.table(ref_df)
             
-            st.session_state.conversation.append({"role": "assistant", "content": temiz_cevap})
+            st.session_state.conversation.append({"role": "assistant", "content": clean_cevap})
