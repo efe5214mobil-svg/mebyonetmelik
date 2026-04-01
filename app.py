@@ -58,11 +58,19 @@ def load_vector_db():
 
 vector_db = load_vector_db()
 
-# 🛡️ Güvenlik Filtresi
+# 🛡️ Gelişmiş Güvenlik Filtresi (Küfür, Argo, Kısaltma, Cinsellik)
 def filtre_kontrol(metin):
-    yasakli = ["siyaset", "parti", "din", "ırk", "mezhep", "küfür", "argo", "hakaret", "aptal", "salak"]
-    metin_low = metin.lower()
-    return any(kelime in metin_low for kelime in yasakli)
+    # Kısaltmalar, organ isimleri ve yaygın küfür kökleri
+    yasakli_kokler = [
+        "siyaset", "parti", "din", "ırk", "mezhep", # Sosyal/Siyasal
+        "oç", "aq", "amk", "amq", "piç", "göt", "sik", "amc", # Kısaltma ve küfür kökleri
+        "yarrak", "taşşak", "meme", "daşşak", "fahişe", "orospu", # Cinsellik/Küfür
+        "it", "köpek", "şerefsiz", "haysiyetsiz", "aptal", "salak", "gerizekalı" # Hakaret
+    ]
+    metin_low = metin.lower().replace(" ", "") # Boşlukları silerek "a m k" gibi yazımları yakalar
+    
+    # Kelime içinde geçip geçmediğini kontrol et
+    return any(kok in metin_low for kok in yasakli_kokler)
 
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
@@ -75,14 +83,9 @@ def sorgula(soru):
     messages = [{
         "role": "system", 
         "content": """Sen uzman bir MEB Mevzuat Asistanısın. 
-        [GÜNCEL KURALLAR]:
-        - Ders Süresi: Okul 40dk, İşletme 60dk.
-        - Yaş & Evlilik: Kayıt için <18 yaş. Evli olanlar Açık Lise'ye.
-        - Devamsızlık: Özürsüz 10, Toplam 30 gün (Ağır hastalıkta 60).
-        - Başarı: Geçme 50 puan. Max 3 sorumlu geçiş. 6+ zayıf tekrar.
-        - Disiplin: Kopya/Sigara = Kınama.
-        - Nakil: Aralık/Mayıs hariç her ayın ilk iş günü.
-        Talimat: Teknik referans vermeden, samimi ama resmi bir uzman diliyle cevap ver."""
+        KURAL: Asla küfür, argo veya yönetmelik dışı konulara girme.
+        VERİLER: Ders saati 40/60dk, Devamsızlık 10/30 gün, Geçme 50 puan, Sorumluluk max 3, 6+ zayıf tekrar, Kayıt <18 yaş, Evli=Açık Lise.
+        TALİMAT: Samimi ama resmi bir dille, teknik referans vermeden cevap ver."""
     }]
     
     for msg in st.session_state.conversation[-4:]:
@@ -122,16 +125,17 @@ for msg in st.session_state.conversation:
 # Giriş Alanı
 if prompt := st.chat_input("Yönetmelik hakkında bir soru sorun..."):
     
+    # 🛡️ GELİŞMİŞ FİLTRELEME
     if filtre_kontrol(prompt):
-        # İhlal varsa mesajı gösterme ve kaydetme
-        st.error("⚠️ Mesajınız topluluk kurallarına aykırı içerik barındırdığı için engellenmiştir.")
+        # Mesajı listeye eklemeden direkt uyarı ver
+        st.error("⚠️ Uyarı: Mesajınız topluluk kurallarına aykırı veya uygunsuz içerik barındırdığı için sistem tarafından engellenmiştir.")
     else:
         st.session_state.conversation.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("⚖️ İnceleniyor..."):
+            with st.spinner("⚖️ Mevzuat taranıyor..."):
                 cevap = sorgula(prompt)
                 st.markdown(cevap)
                 st.session_state.conversation.append({"role": "assistant", "content": cevap})
