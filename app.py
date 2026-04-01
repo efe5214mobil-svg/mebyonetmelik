@@ -4,6 +4,7 @@ from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings 
 from dotenv import load_dotenv
 import os
+import re
 
 # 🔐 API ve Çevre Değişkenleri
 load_dotenv()
@@ -58,19 +59,36 @@ def load_vector_db():
 
 vector_db = load_vector_db()
 
-# 🛡️ Gelişmiş Güvenlik Filtresi (Küfür, Argo, Kısaltma, Cinsellik)
+# 🛡️ GELİŞMİŞ GÜVENLİK FİLTRESİ (Zırhlı Versiyon)
 def filtre_kontrol(metin):
-    # Kısaltmalar, organ isimleri ve yaygın küfür kökleri
-    yasakli_kokler = [
-        "siyaset", "parti", "din", "ırk", "mezhep", # Sosyal/Siyasal
-        "oç", "aq", "amk", "amq", "piç", "göt", "sik", "amc", # Kısaltma ve küfür kökleri
-        "yarrak", "taşşak", "meme", "daşşak", "fahişe", "orospu", # Cinsellik/Küfür
-        "it", "köpek", "şerefsiz", "haysiyetsiz", "aptal", "salak", "gerizekalı" # Hakaret
-    ]
-    metin_low = metin.lower().replace(" ", "") # Boşlukları silerek "a m k" gibi yazımları yakalar
+    # Benzer karakterleri dönüştür (leetspeak koruması)
+    donusumler = {
+        '1': 'i', '0': 'o', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', 
+        '@': 'a', '$': 's', '€': 'e', '!': 'i', '0': 'o'
+    }
     
-    # Kelime içinde geçip geçmediğini kontrol et
-    return any(kok in metin_low for kok in yasakli_kokler)
+    # 1. Küçük harfe çevir
+    temiz = metin.lower()
+    
+    # 2. Benzer karakterleri harfe çevir
+    for eski, yeni in donusumler.items():
+        temiz = temiz.replace(eski, yeni)
+    
+    # 3. Harf ve rakam dışındaki TÜM sembolleri sil (Nokta, alt tire, boşluk dahil)
+    # Bu sayede "a.m.k" veya "g_a_y" direkt "amk" ve "gay" olur.
+    temiz = re.sub(r'[^a-z0-9]', '', temiz)
+    
+    yasakli_listesi = [
+        # Küfür & Kısaltma
+        "oc", "aq", "amk", "amq", "pic", "got", "sik", "amc", "yarrak", "fassak", "tassak", "dassak",
+        "orospu", "fahise", "pezevenk", "kahpe", "gavat", "meme",
+        # Cinsel Yönelim & Taciz
+        "gay", "lezbiyen", "lgbt", "travesti", "seks", "sex", "porno", "vajina", "penis",
+        # Hakaret & Siyaset/Din
+        "siyaset", "parti", "teror", "it", "kopek", "serefsiz", "haysiyetsiz", "beyinsiz", "gerizekali"
+    ]
+    
+    return any(yasak in temiz for yasak in yasakli_listesi)
 
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
@@ -83,9 +101,9 @@ def sorgula(soru):
     messages = [{
         "role": "system", 
         "content": """Sen uzman bir MEB Mevzuat Asistanısın. 
-        KURAL: Asla küfür, argo veya yönetmelik dışı konulara girme.
-        VERİLER: Ders saati 40/60dk, Devamsızlık 10/30 gün, Geçme 50 puan, Sorumluluk max 3, 6+ zayıf tekrar, Kayıt <18 yaş, Evli=Açık Lise.
-        TALİMAT: Samimi ama resmi bir dille, teknik referans vermeden cevap ver."""
+        GÖREVİN: Sadece Milli Eğitim Bakanlığı yönetmelikleri hakkında bilgi vermek.
+        KESİN YASAK: Küfür, hakaret, cinsel içerik veya yönelimlerle ilgili tartışmalara asla girme.
+        BİLGİLER: Ders süresi 40/60dk, Devamsızlık 10/30 gün, Geçme 50, Sorumluluk max 3, 6+ zayıf tekrar."""
     }]
     
     for msg in st.session_state.conversation[-4:]:
@@ -125,17 +143,16 @@ for msg in st.session_state.conversation:
 # Giriş Alanı
 if prompt := st.chat_input("Yönetmelik hakkında bir soru sorun..."):
     
-    # 🛡️ GELİŞMİŞ FİLTRELEME
+    # 🛡️ SÜPER FİLTRE KONTROLÜ
     if filtre_kontrol(prompt):
-        # Mesajı listeye eklemeden direkt uyarı ver
-        st.error("⚠️ Uyarı: Mesajınız topluluk kurallarına aykırı veya uygunsuz içerik barındırdığı için sistem tarafından engellenmiştir.")
+        st.error("⚠️ Mesajınız topluluk kurallarına aykırı veya uygunsuz içerik barındırdığı için sistem tarafından engellenmiştir.")
     else:
         st.session_state.conversation.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("⚖️ Mevzuat taranıyor..."):
+            with st.spinner("⚖️ İnceleniyor..."):
                 cevap = sorgula(prompt)
                 st.markdown(cevap)
                 st.session_state.conversation.append({"role": "assistant", "content": cevap})
