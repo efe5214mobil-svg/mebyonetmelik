@@ -1,178 +1,112 @@
 import streamlit as st
-from groq import Groq
-from langchain_community.vectorstores import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings 
-from dotenv import load_dotenv
 import os
 import re
-import time 
+import time
+from dotenv import load_dotenv
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.vectorstores import Chroma
+from rag import okul_asistani_sorgula
 
-# 🔐 API ve Çevre Değişkenleri
+# 🔐 Başlatma
 load_dotenv()
-api_anahtari = os.getenv("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY")
-istemci = Groq(api_key=api_anahtari)
 
-# 🎨 Sayfa Yapılandırması
-st.set_page_config(page_title="MEB Yönetmelik Asistanı", page_icon="🏛️", layout="centered")
-
-# 🖌️ Modern Görünüm (CSS)
-st.markdown("""
-<style>
-    .stApp { font-family: 'Inter', sans-serif; }
-    .ana-baslik { font-size: 2.5rem; font-weight: 800; text-align: center; margin-bottom: 1.5rem; color: #FFFFFF; }
-    
-    .yuzen-buton-alani {
-        position: fixed;
-        bottom: 85px; 
-        right: 10%; 
-        z-index: 999999;
-    }
-
-    .stLinkButton a {
-        background-color: #FF8C00 !important;
-        color: white !important;
-        border-radius: 25px !important;
-        padding: 0.6rem 1.5rem !important;
-        font-weight: 700 !important;
-        text-decoration: none !important;
-        border: 2px solid white !important;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2) !important;
-    }
-
-    .kategori-kutusu {
-        background-color: rgba(128, 128, 128, 0.05);
-        border-radius: 15px;
-        padding: 18px;
-        border-top: 4px solid #FF4B4B;
-        height: 100%;
-        margin-bottom: 10px;
-    }
-    .kategori-basligi { font-weight: bold; color: #FF4B4B; margin-bottom: 10px; font-size: 1.15rem; }
-    .kategori-maddesi { font-size: 0.88rem; margin-bottom: 6px; color: #444; }
-</style>
-""", unsafe_allow_html=True)
-
-# 🧠 Veri Tabanı Yükleme
 @st.cache_resource
 def veri_tabanini_yukle():
-    gomme_modeli = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    return Chroma(persist_directory="okul_asistani_gpt_db", embedding_function=gomme_modeli)
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    return Chroma(persist_directory="okul_asistani_gpt_db", embedding_function=embeddings)
 
 vektor_tabani = veri_tabanini_yukle()
 
-# 🛡️ ÇELİK ZIRHLI GÜVENLİK SÜZGECİ
+# 🛡️ GELİŞMİŞ ÇELİK ZIRH SÜZGECİ
 def suzgec_kontrolu(metin):
-    karakter_haritasi = {'1': 'i', '0': 'o', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '@': 'a', '$': 's'}
-    temiz_metin = metin.lower()
-    for eski, yeni in karakter_haritasi.items():
-        temiz_metin = temiz_metin.replace(eski, yeni)
+    # Karakter hilelerini temizle (1=i, 4=a vb.)
+    harita = {'1':'i', '0':'o', '3':'e', '4':'a', '5':'s', '7':'t', '8':'b', '@':'a', '$':'s'}
+    temiz = metin.lower()
+    for eski, yeni in harita.items():
+        temiz = temiz.replace(eski, yeni)
     
-    # Hileleri engellemek için metni sıkıştır
-    sikistirilmis_metin = re.sub(r'[^a-z0-9çşğüöı]', '', temiz_metin)
+    # Boşlukları ve özel karakterleri silerek sıkıştır
+    sıkı_metin = re.sub(r'[^a-z0-9çşğüöı]', '', temiz)
     
-    yasakli_kelimeler = [
-        "oc", "aq", "amk", "amq", "pic", "got", "sik", "amc", "yarrak", "orospu", "bebegim", "askim",
-        "nigga", "zenci", "cikolata", "irkci", "yahudi", "ermeni", "nazi",
-        "erdogan", "tayyip", "rte", "cumhurbaskani", "akp", "chp", "mhp", "siyaset", "parti", "darbe",
-        "mahmud", "charles", "suleyman", "fatih", "kanuni", "padisah", "kral", "imparator", "osmanli",
-        "ataturk", "hitler", "stalin", "lenin", "modernizm", "narsizm", "narsist", "nihilizm", 
-        "ideoloji", "1945", "1939", "savas", "gay", "lezbiyen", "lgbt", "seks", "porno"
+    # Kapsamlı Yasaklı Listesi
+    yasakli = [
+        "oc", "aq", "amk", "amq", "pic", "got", "sik", "amc", "yarrak", "orospu", 
+        "seks", "porno", "gay", "lezbiyen", "lgbt", "erdogan", "tayyip", "siyaset", 
+        "parti", "ataturk", "teror", "darbe", "bebegim", "askim"
     ]
-    return any(yasakli in sikistirilmis_metin for yasakli in yasakli_kelimeler)
+    return any(kelime in sıkı_metin for kelime in yasakli)
 
-if "sohbet_gecmisi" not in st.session_state:
-    st.session_state.sohbet_gecmisi = []
+# 🖌️ TASARIM (Mavi-Beyaz Temalı)
+st.set_page_config(page_title="Okul Asistanı GPT", layout="centered")
 
-# 🤖 Yanıt Oluşturucu (TÜM YÖNETMELİK BURADA)
-def cevap_olustur(soru):
-    ilgili_belgeler = vektor_tabani.similarity_search(soru, k=5)
-    kaynak_metin = "\n\n".join([belge.page_content for belge in ilgili_belgeler])
+st.markdown("""
+<style>
+    .stApp { font-family: 'Inter', sans-serif; }
+    .ana-baslik { font-size: 2.5rem; font-weight: 800; text-align: center; color: #FFFFFF; }
     
-    iletiler = [{
-        "role": "system", 
-        "content": """Sen uzman bir MEB Mevzuat Asistanısın. Sadece aşağıdaki yönetmelik kurallarına göre cevap ver:
+    /* Mavi-Beyaz Yönlendirme Butonu */
+    .yuzen-buton-alani {
+        position: fixed;
+        bottom: 85px; 
+        right: 8%; 
+        z-index: 9999;
+    }
+    .stLinkButton a {
+        background-color: #1E90FF !important; /* Mavi Arka Plan */
+        color: white !important;               /* Beyaz Yazı */
+        border-radius: 30px !important;
+        padding: 0.8rem 1.8rem !important;
+        font-weight: 700 !important;
+        border: 2px solid #FFFFFF !important;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.4) !important;
+    }
 
-        1. GENEL BİLGİLER:
-        - Ders saati okulda 40 dk, işletmelerde 60 dk'dır.
-        - Ders yılı: Başlangıçtan kesildiği tarihe kadardır.
-        - Kayıt: 18 yaşını bitirmemiş olmak şarttır.
-        - Evlilik: Evli olanların kaydı yapılmaz, öğrenciyken evlenenler Açık Lise'ye aktarılır.
-        - Hazırlık: Üst üste 2 yıl başarısız olan 9. sınıfa (hazırlık olmayan) nakledilir.
-
-        2. DEVAMSIZLIK:
-        - Özürsüz sınır 10 gündür. 10 günü geçen başarısız sayılır.
-        - Toplam sınır (özürlü+özürsüz) 30 gündür.
-        - İstisna: Organ nakli, ağır hastalık gibi hallerde toplam sınır 60 gündür.
-        - Geç gelme: Sadece 1. ders saati için geçerlidir, sonrası devamsızlıktır.
-
-        3. SINIF GEÇME & BAŞARI:
-        - Yazılı sınav: Her dersten en az 2 yazılı yapılır.
-        - Başarı puanı: Geçme notu en az 50'dir.
-        - Sorumlu geçme: En fazla 3 dersten zayıfı olan sorumlu geçer.
-        - Sınıf tekrarı: Başarısız ders sayısı 6'yı geçerse sınıf tekrar edilir.
-        - Beceri sınavı: %80 sınav puanı + %20 iş dosyası.
-
-        4. NAKİL & DERS SEÇİMİ:
-        - Nakil: Aralık ve Mayıs hariç her ayın ilk iş günü başvurulur.
-        - Ders seçimi (9. Sınıf): Ders yılının ilk haftasında yapılır.
-
-        5. DİSİPLİN & ÖDÜL:
-        - Cezalar: Kınama, kısa süreli uzaklaştırma, okul değiştirme, örgün eğitim dışına çıkarma.
-        - Kopya ve Sigara: 'Kınama' cezası gerektirir.
-        - Teşekkür: 70,00 - 84,99 arası ortalama.
-        - Takdir: 85,00 ve üzeri ortalama.
-
-        KESİN YASAKLAR: Siyaset, tarih, felsefi akımlar ve uygunsuz hitaplara cevap verme. Daima profesyonel Türkçe kullan."""
-    }]
-    
-    for ileti in st.session_state.sohbet_gecmisi[-2:]:
-        iletiler.append(ileti)
-    
-    iletiler.append({"role": "user", "content": f"BAĞLAM:\n{kaynak_metin}\n\nSORU: {soru}"})
-    
-    yanit = istemci.chat.completions.create(
-        messages=iletiler, 
-        model="llama-3.3-70b-versatile", 
-        temperature=0.1
-    )
-    return yanit.choices[0].message.content
+    .kategori-kutusu {
+        background-color: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 15px;
+        border-top: 4px solid #1E90FF;
+        margin-bottom: 10px;
+    }
+    .kategori-basligi { font-weight: bold; color: #1E90FF; }
+</style>
+""", unsafe_allow_html=True)
 
 # --- ARAYÜZ ---
-st.markdown("<div class='ana-baslik'>🏛️ MEB Yönetmelik Asistanı</div>", unsafe_allow_html=True)
+st.markdown("<div class='ana-baslik'>📅 Okul Ders Programı Asistanı</div>", unsafe_allow_html=True)
 
+# Yönlendirme Butonu (Tıklandığında MEB Yönetmelik sitesine gider)
 st.markdown('<div class="yuzen-buton-alani">', unsafe_allow_html=True)
-st.link_button("📅 Sınıf Programı", "https://sinifprogrami.streamlit.app/")
+st.link_button("🏛️ MEB Yönetmelik", "https://meb-yonetmelik.streamlit.app/")
 st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown("### 💡 Hızlı Sorular")
-s1, s2, s3 = st.columns(3)
-with s1:
-    st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">📜 Kayıt & Disiplin</div><div class="kategori-maddesi">• Evlilik durumu?<br>• Kopya cezası?</div></div>', unsafe_allow_html=True)
-with s2:
-    st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">⏳ Devamsızlık</div><div class="kategori-maddesi">• 10/30 gün kuralı?<br>• Geç gelme sınırı?</div></div>', unsafe_allow_html=True)
-with s3:
-    st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">🎓 Başarı & Nakil</div><div class="kategori-maddesi">• Kaç zayıfla kalınır?<br>• Nakil dönemi?</div></div>', unsafe_allow_html=True)
+# 💡 Hızlı Sorular (Öneri Kartları)
+c1, c2, c3 = st.columns(3)
+with c1: st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">🔍 Sınıflar</div>9-A Pazartesi dersleri neler?</div>', unsafe_allow_html=True)
+with c2: st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">👨‍🏫 Hocalar</div>U.TRK dersi hangi saatte?</div>', unsafe_allow_html=True)
+with c3: st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">📚 Dersler</div>Bilişim dersi hangi gün?</div>', unsafe_allow_html=True)
+
 st.markdown("---")
 
-for ileti in st.session_state.sohbet_gecmisi:
-    with st.chat_message(ileti["role"]):
-        st.markdown(ileti["content"])
+if "messages" not in st.session_state: st.session_state.messages = []
 
-if girdi := st.chat_input("Yönetmelik hakkında bir soru sorun..."):
-    
+for m in st.session_state.messages:
+    with st.chat_message(m["role"]): st.markdown(m["content"])
+
+if girdi := st.chat_input("Ders programı hakkında bir soru sorun..."):
     if suzgec_kontrolu(girdi):
-        uyari_alani = st.empty()
-        uyari_alani.error("⚠️ Uyarı: İletiniz yönetmelik dışı veya uygunsuz içerik barındırdığı için engellenmiştir.")
-        time.sleep(2) 
-        uyari_alani.empty() 
+        msg = st.error("⚠️ Güvenlik Süzgeci: Lütfen uygun bir dil kullanın.")
+        time.sleep(2); msg.empty()
     else:
-        st.session_state.sohbet_gecmisi.append({"role": "user", "content": girdi})
-        with st.chat_message("user"):
-            st.markdown(girdi)
+        st.session_state.messages.append({"role": "user", "content": girdi})
+        with st.chat_message("user"): st.markdown(girdi)
 
         with st.chat_message("assistant"):
-            with st.spinner("⚖️ İnceleniyor..."):
-                cevap = cevap_olustur(girdi)
+            with st.spinner("⏳ İnceleniyor..."):
+                cevap, kaynaklar = okul_asistani_sorgula(girdi, vektor_tabani)
                 st.markdown(cevap)
-                st.session_state.sohbet_gecmisi.append({"role": "assistant", "content": cevap})
+                if kaynaklar:
+                    with st.expander("📌 Kaynak Bilgi"):
+                        for k in kaynaklar: st.caption(k)
+                st.session_state.messages.append({"role": "assistant", "content": cevap})
                 st.rerun()
