@@ -4,67 +4,27 @@ from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings 
 from dotenv import load_dotenv
 import os
-import re
-import pandas as pd
 
-# 🔐 .env yükle
+# 🔐 .env
 load_dotenv()
-
 api_key = os.getenv("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY")
 client = Groq(api_key=api_key)
 
-# 🎨 Sayfa Konfigürasyonu ve Modern Stil
-st.set_page_config(page_title="MEB Mevzuat Analisti", page_icon="🏛️", layout="wide")
+# 🎨 Sayfa
+st.set_page_config(page_title="MEB Mevzuat Asistanı", page_icon="🏛️", layout="centered")
 
-# Modern CSS Tasarımı (Karanlık ve Aydınlık Mod Uyumlu)
+# 🎨 Stil
 st.markdown("""
-    <style>
-    /* Ana Arka Plan ve Yazı Tipi */
-    .stApp {
-        font-family: 'Inter', sans-serif;
-    }
-    
-    /* Yan Panel (Sidebar) Tasarımı */
-    [data-testid="stSidebar"] {
-        background-color: rgba(20, 25, 35, 0.05);
-        border-right: 1px solid rgba(128, 128, 128, 0.2);
-    }
+<style>
+.stApp { font-family: 'Inter', sans-serif; }
+[data-testid="stChatMessage"] {
+    border-radius: 18px;
+    padding: 12px;
+}
+</style>
+""", unsafe_allow_html=True)
 
-    /* Hızlı Soru Butonları */
-    .stButton>button {
-        width: 100%;
-        border-radius: 12px;
-        border: 1px solid rgba(128, 128, 128, 0.2);
-        background-color: transparent;
-        transition: all 0.3s ease;
-        text-align: left;
-        padding: 10px 15px;
-    }
-    
-    .stButton>button:hover {
-        border-color: #ff4b4b;
-        color: #ff4b4b;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-
-    /* Sohbet Balonları */
-    [data-testid="stChatMessage"] {
-        border-radius: 20px;
-        padding: 15px;
-        margin-bottom: 10px;
-        border: 1px solid rgba(128, 128, 128, 0.1);
-    }
-    
-    /* Tablo ve Expander Düzeni */
-    .stExpander {
-        border-radius: 15px !important;
-        border: 1px solid rgba(128, 128, 128, 0.2) !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-# 🧠 VECTOR DB Yükleme
+# 🧠 VECTOR DB
 @st.cache_resource
 def load_vector_db():
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
@@ -72,102 +32,157 @@ def load_vector_db():
 
 vector_db = load_vector_db()
 
+# 🗂️ Hafıza
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
 
-# 🤖 SIKÇA SORULAN SORULAR (Sidebar)
-def hızlı_sorular():
-    with st.sidebar:
-        st.image("https://upload.wikimedia.org/wikipedia/commons/b/b5/Milli_E%C4%9Fitim_Bakanl%C4%B1%C4%9F%C4%B1_Logo.svg", width=100)
-        st.title("Hızlı Erişim")
-        st.markdown("---")
-        sorular = [
-            "🔖 Özürsüz devamsızlık sınırı",
-            "🎓 Sınıf geçme puanı nedir?",
-            "📚 Kaç dersten kalınca sınıf tekrarı olur?",
-            "🚭 Sigara içmenin disiplin cezası",
-            "🎖️ Takdir ve Teşekkür şartları",
-            "🔄 Nakil başvuru zamanları",
-            "💍 Evlenen öğrencilerin durumu",
-            "⏰ Ders saati süreleri"
-        ]
-        for s in sorular:
-            if st.button(s):
-                return s.replace("🔖 ", "").replace("🎓 ", "").replace("📚 ", "").replace("🚭 ", "").replace("🎖️ ", "").replace("🔄 ", "").replace("💍 ", "").replace("⏰ ", "")
-    return None
+# 🔍 AUTOCOMPLETE
+oneriler = [
+    "Devamsızlık sınırı nedir?",
+    "Kaç gün devamsızlıkta kalınır?",
+    "Sınıf geçme şartları nelerdir?",
+    "Kaç dersten kalınca sınıfta kalınır?",
+    "Takdir ve teşekkür şartları nelerdir?",
+    "Sigara içmenin cezası nedir?",
+    "Nakil başvurusu ne zaman yapılır?",
+    "Ders süresi kaç dakikadır?"
+]
 
-# 🤖 ANALİZ VE SORGULAMA
-def okul_asistani_sorgula(soru):
+def autocomplete(text):
+    if not text:
+        return []
+    return [o for o in oneriler if text.lower() in o.lower()]
+
+# ❌ UYGUNSUZ SORU KONTROL
+def uygunsuz_mu(soru):
+    yasakli = [
+        "küfür","argo","salak","aptal","mal",
+        "siyaset","cumhurbaşkanı","parti",
+        "din","allah","tanrı",
+        "ırk","kürt","türk","arap"
+    ]
+    soru_lower = soru.lower()
+    return any(kelime in soru_lower for kelime in yasakli)
+
+# 🤖 MODEL
+def sorgula(soru):
     docs = vector_db.similarity_search(soru, k=4)
     baglam = "\n\n".join([doc.page_content for doc in docs])
 
-    messages = [
-        {
-            "role": "system", 
-            "content": """Sen MEB yönetmeliği konusunda uzmanlaşmış bir analiz modelisin. 
-            [SORULAR.PDF VERİLERİNE GÖRE KESİN KURALLAR]:
-            - Devamsızlık: Özürsüz 10 günü geçerse başarısız sayılır[cite: 1]. Toplam sınır 30 gündür (Ağır hastalık/organ naklinde 60 gün)[cite: 1].
-            - Ders Süresi: Okulda 40, işletmelerde 60 dakikadır[cite: 1].
-            - Kayıt: 18 yaşını bitirmemiş olmak gerekir[cite: 1]. Evli olanların kaydı yapılmaz; öğrenciyken evlenenler Açık Lise'ye aktarılır[cite: 1].
-            - Başarı: Dersten geçmek için yılsonu puanı en az 50 olmalıdır[cite: 1].
-            - Sınıf Geçme: 3 derse kadar sorumlu geçilir[cite: 2]. Toplam başarısızlık 6'yı geçerse sınıf tekrarı yapılır[cite: 2].
-            - Belgeler: Teşekkür için 70.00-84.99, Takdir için 85.00 ve üzeri ortalama gerekir[cite: 2].
-            - Disiplin: Kopya çekmek veya sigara içmek 'Kınama' cezası gerektirir[cite: 2].
-            - Nakil: Aralık ve Mayıs hariç her ayın ilk iş günü başvurulabilir[cite: 2].
+    messages = [{
+        "role": "system",
+        "content": """
+Sen MEB (Milli Eğitim Bakanlığı) yönetmeliği uzmanısın.
 
-            [STRATEJİ]: Cevabını resmi bir dille başlat ve yukarıdaki kesin verileri önceliklendir."""
-        }
-    ]
+GÖREV:
+- Sadece yönetmeliğe göre cevap ver
+- Kısa, net ve resmi ol
+- Maddeler halinde yazabilirsin
+
+YASAK:
+- Küfür, argo, siyaset, din, ırk içeren cevap verme
+- Uydurma bilgi verme
+
+KURALLAR:
+
+GENEL:
+- Ders süresi: 40 dk (okul), 60 dk (işletme)
+
+DEVAMSIZLIK:
+- Özürsüz 10 gün → kalır
+- Toplam 30 gün
+- İstisna 60 gün
+
+SINIF GEÇME:
+- 3 derse kadar sorumlu
+- 6 üstü → sınıf tekrarı
+
+BAŞARI:
+- Geçme notu: 50
+
+DİSİPLİN:
+- Sigara ve kopya = Kınama
+
+BELGE:
+- Teşekkür: 70-84.99
+- Takdir: 85+
+
+NAKİL:
+- Aralık ve Mayıs hariç ay başı
+
+STRATEJİ:
+- Direkt cevabı ver
+- Gereksiz uzatma
+"""
+    }]
 
     for msg in st.session_state.conversation[-4:]:
         messages.append(msg)
 
-    messages.append({"role": "user", "content": f"BAĞLAM:\n{baglam}\n\nSORU: {soru}"})
+    messages.append({"role": "user", "content": f"{baglam}\n\nSoru: {soru}"})
 
-    try:
-        completion = client.chat.completions.create(
-            messages=messages,
-            model="openai/gpt-oss-120b",
-            temperature=0.1,
-            max_tokens=800
-        )
-        return completion.choices[0].message.content, docs
-    except Exception as e:
-        return f"Hata: {str(e)}", None
+    completion = client.chat.completions.create(
+        messages=messages,
+        model="openai/gpt-oss-120b",
+        temperature=0.1,
+        max_tokens=600
+    )
 
-# --- ARAYÜZ AKIŞI ---
-sidebar_soru = hızlı_sorular()
+    return completion.choices[0].message.content, docs
 
-# Başlık Bölümü
-st.markdown("### 🏛️ Milli Eğitim Bakanlığı Mevzuat Danışmanı")
-st.caption("Yönetmelik maddeleri ve sorular.pdf verilerine dayalı yapay zeka analizi.")
+# 🎯 Başlık
+st.title("🏛️ MEB Mevzuat Asistanı")
+st.caption("Sadece yönetmeliğe uygun cevap verir")
 
-# Chat Ekranı
-chat_container = st.container()
+# 💬 Chat geçmişi
+for msg in st.session_state.conversation:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-with chat_container:
-    for msg in st.session_state.conversation:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+# ✍️ Input
+user_input = st.text_input("Sorunuzu yazın:")
 
-# Giriş Bölümü
-prompt = sidebar_soru or st.chat_input("Sorunuzu buraya yazın (Örn: Devamsızlık sınırı nedir?)")
+# 🔍 Autocomplete
+suggestions = autocomplete(user_input)
+for s in suggestions:
+    if st.button(f"🔎 {s}"):
+        user_input = s
 
-if prompt:
-    st.session_state.conversation.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+# 💬 Chat input
+chat_input = st.chat_input("Sorunuzu buraya yazın...")
 
-    with st.spinner("⚖️ Mevzuat inceleniyor..."):
-        cevap, kaynaklar = okul_asistani_sorgula(prompt)
-        st.session_state.conversation.append({"role": "assistant", "content": cevap})
+prompt = chat_input if chat_input else user_input
+
+# 🚀 SORGULAMA
+if prompt and prompt.strip() != "":
+
+    # ❌ uygunsuz kontrol
+    if uygunsuz_mu(prompt):
+        hata_mesaji = "❌ Üzgünüm, sorduğunuz konu dışıdır. Lütfen MEB yönetmeliğine göre soru sorunuz."
+        
+        st.session_state.conversation.append({"role": "user", "content": prompt})
+        st.session_state.conversation.append({"role": "assistant", "content": hata_mesaji})
+
+        with st.chat_message("user"):
+            st.markdown(prompt)
         with st.chat_message("assistant"):
-            st.markdown(cevap)
-            
-            if kaynaklar:
-                with st.expander("📄 Dayanak Maddeler ve Tablo Verisi"):
-                    # PDF Verisi Özeti
-                    st.info("Bu cevap sorular.pdf içerisindeki resmi tablo verileriyle desteklenmiştir.")
-                    for doc in kaynaklar:
-                        st.caption(doc.page_content[:400] + "...")
-                        st.divider()
+            st.markdown(hata_mesaji)
+
+    else:
+        st.session_state.conversation.append({"role": "user", "content": prompt})
+
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.spinner("Yanıt hazırlanıyor..."):
+            cevap, kaynaklar = sorgula(prompt)
+
+            st.session_state.conversation.append({"role": "assistant", "content": cevap})
+
+            with st.chat_message("assistant"):
+                st.markdown(cevap)
+
+                if kaynaklar:
+                    with st.expander("📄 Kaynaklar"):
+                        for doc in kaynaklar:
+                            st.caption(doc.page_content[:300] + "...")
