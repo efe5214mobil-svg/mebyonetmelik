@@ -5,6 +5,3 @@ langchain-community
 chromadb
 sentence-transformers
 python-dotenv
-pillow
-pandas
-protobuf
