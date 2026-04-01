@@ -4,6 +4,7 @@ from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings 
 from dotenv import load_dotenv
 import os
+import time  # ⏳ Bekleme süresi için eklendi
 
 # 🔐 API ve Çevre Değişkenleri
 load_dotenv()
@@ -74,20 +75,11 @@ def sorgula(soru):
     
     messages = [{
         "role": "system", 
-        "content": """Sen uzman bir MEB Mevzuat Asistanısın. Aşağıdaki güncel kurallara tam bağlı kalarak, profesyonel ama anlaşılır bir dille cevap ver:
-
-        [TEMEL KURALLAR]:
-        - Ders Süresi: Okulda 40 dk, işletmelerde 60 dk.
-        - Kayıt & Yaş: Kayıt günü 18 yaşını bitirmemiş olmak şart. Evli olanlar kaydedilmez, öğrenciyken evlenenler Açık Lise'ye nakledilir.
-        - Devamsızlık: Özürsüz sınırı 10 gün. Toplam (özürlü+özürsüz) sınırı 30 gün. İstisnai hallerde (organ nakli, ağır hastalık vb.) toplam 60 gün.
-        - Geç Gelme: Sadece 1. ders için geçerlidir, sonrası devamsızlık sayılır.
-        - Başarı & Sınıf Geçme: Geçme notu 50. Her dersten en az 2 yazılı zorunlu. Max 3 ders zayıfı olan 'Sorumlu' geçer. Toplam 6+ zayıfı olan sınıf tekrarı yapar.
-        - Beceri Sınavı: %80 sınav puanı + %20 iş dosyası.
-        - Nakil: Aralık ve Mayıs ayları hariç her ayın ilk iş günü başvurulabilir.
-        - Disiplin: Kopya ve sigara kullanımı 'Kınama' cezasıdır.
-        - Ödüller: Teşekkür (70.00-84.99), Takdir (85.00+).
-
-        Talimat: Teknik referans (madde no vb.) verme, doğrudan cevap ver. Dökümanlardaki (BAĞLAM) bilgilerle yukarıdaki kuralları harmanla."""
+        "content": """Sen uzman bir MEB Mevzuat Asistanısın. 
+        KURALLAR: Ders süresi (40/60 dk), Kayıt yaş sınırı (18), Evlilik (Açık Lise), 
+        Devamsızlık (10/30 gün), Başarı puanı (50), Sorumluluk (max 3), Sınıf tekrarı (6+ zayıf),
+        Beceri sınavı (%80+%20), Nakil dönemi (Aralık/Mayıs hariç), Disiplin (Kopya/Sigara=Kınama).
+        Talimat: Teknik referans vermeden doğrudan cevap ver."""
     }]
     
     for msg in st.session_state.conversation[-4:]:
@@ -119,21 +111,31 @@ with c3:
     st.markdown('<div class="category-box"><div class="category-title">🎓 Başarı & Nakil</div><div class="category-item">• Kaç zayıfla kalınır?<br>• Nakil dönemi ne zaman?</div></div>', unsafe_allow_html=True)
 st.markdown("---")
 
+# Sohbet Geçmişini Görüntüle
 for msg in st.session_state.conversation:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
+# Giriş Alanı
 if prompt := st.chat_input("Yönetmelik hakkında bir soru sorun..."):
     
+    # 🛡️ GÜVENLİK FİLTRESİ (Yasaklı mesajı hiç kaydetmez)
     if filtre_kontrol(prompt):
-        st.warning("⚠️ Uyarı: Mesajınız topluluk kurallarına aykırı içerik (küfür, siyaset, din vb.) barındırdığı için engellenmiştir. Lütfen sadece yönetmelik ile ilgili sorular sorun.")
+        st.error("⚠️ Mesajınız topluluk kurallarına aykırı içerik barındırdığı için silinmiş ve engellenmiştir.")
     else:
+        # Mesajı geçmişe ekle
         st.session_state.conversation.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("⚖️ İçerik inceleniyor..."):
+            with st.spinner("⚖️ İnceleniyor..."):
                 cevap = sorgula(prompt)
                 st.markdown(cevap)
                 st.session_state.conversation.append({"role": "assistant", "content": cevap})
+                
+                # ⏳ OTOMATİK SİLME (Cevaptan sonra her şeyi temizler)
+                st.caption("🔒 Güvenlik için sohbet geçmişi 5 saniye içinde temizlenecektir.")
+                time.sleep(5)
+                st.session_state.conversation = []
+                st.rerun()
