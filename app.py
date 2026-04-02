@@ -144,7 +144,7 @@ def cevap_olustur(soru):
     
     yanit = istemci.chat.completions.create(
         messages=iletiler, 
-        model="llama-3.3-70b-versatile", 
+        model="moonshotai/kimi-k2-instruct-0905", # llama-3.3-70b-versatile
         temperature=0.1
     )
     return yanit.choices[0].message.content
