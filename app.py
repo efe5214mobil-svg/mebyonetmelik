@@ -20,14 +20,6 @@ st.markdown("""
 <style>
     .stApp { font-family: 'Inter', sans-serif; }
     .ana-baslik { font-size: 2.5rem; font-weight: 800; text-align: center; margin-bottom: 1.5rem; color: #FFFFFF; }
-    
-    .yuzen-buton-alani {
-        position: fixed;
-        bottom: 85px; 
-        right: 10%; 
-        z-index: 999999;
-    }
-
     .stLinkButton a {
         background-color: #FF8C00 !important;
         color: white !important;
@@ -40,7 +32,7 @@ st.markdown("""
     }
 
     .kategori-kutusu {
-        background-color: rgba(255,255,255,255);
+        background-color: rgba(128,128,128, 0.05);
         border-radius: 15px;
         padding: 18px;
         border-top: 4px solid #FF4B4B;
@@ -142,9 +134,6 @@ def cevap_olustur(soru):
 # --- ARAYÜZ ---
 st.markdown("<div class='ana-baslik'>🏛️ MEB Yönetmelik Asistanı</div>", unsafe_allow_html=True)
 
-st.markdown('<div class="yuzen-buton-alani">', unsafe_allow_html=True)
-st.link_button("📅 Sınıf Programı", "https://sinifprogrami.streamlit.app/")
-st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("### 💡 Hızlı Sorular")
 s1, s2, s3 = st.columns(3)
