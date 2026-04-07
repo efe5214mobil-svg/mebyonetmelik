@@ -22,7 +22,7 @@ st.markdown("""
     .kategori-basligi { font-weight: bold; color: #FF4B4B; margin-bottom: 10px; font-size: 1.15rem; }
     .kategori-basligi2 { font-weight: bold; color: #0974e6; margin-bottom: 10px; font-size: 1.15rem; }
     .kategori-basligi3 { font-weight: bold; color: #05f250; margin-bottom: 10px; font-size: 1.15rem; }
-    .kategori-maddesi { font-size: 0.88rem; margin-bottom: 6px; color: #444; }
+    .kategori-maddesi { font-size: 0.88rem; margin-bottom: 6px; color: #FFFFFF; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -105,7 +105,7 @@ st.markdown("<div class='ana-baslik'>🏛️ MEB Yönetmelik Asistanı</div>", u
 st.markdown("### 💡 Hızlı Sorular")
 s1, s2, s3 = st.columns(3)
 with s1:
-    st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">📜 Kayıt & Disiplin</div><div class="kategori-maddesi">• Evlilik durumu?<br>• Kopya cezası?</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">📜 Kayıt & Disiplin</div><div class="kategori-maddesi">• Disiplin cezaları nelerdir?<br>• Kopya cezası?</div></div>', unsafe_allow_html=True)
 with s2:
     st.markdown('<div class="kategori-kutusu2"><div class="kategori-basligi2">⏳ Devamsızlık</div><div class="kategori-maddesi">• 10/30 gün kuralı?<br>• Geç gelme sınırı?</div></div>', unsafe_allow_html=True)
 with s3:
