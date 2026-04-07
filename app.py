@@ -59,6 +59,8 @@ def cevap_olustur(soru, vektor_db, istemci):
     1. Devamsızlık: Özürsüz 10, toplam 30 gün.
     2. Başarı: Geçme notu 50. 6 dersten fazla başarısızlıkta sınıf tekrarı.
     3. Disiplin: Kopya ve sigara kınama cezasıdır.
+    4. Sorumluluk sınavları Birinci dönemin ilk haftası, ikinci dönemin ilk haftası ve son iki hafta içerisinde yapılır.
+    5. İlgili soruyla alakalı araştır ve ona göre madde ver Örnek : "(Madde-X)" sonuna ekliceksin.
     Siyaset ve uygunsuz konulara girme."""
 
     iletiler = [{"role": "system", "content": sistem_mesaji}]
