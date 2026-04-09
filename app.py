@@ -60,6 +60,15 @@ def cevap_olustur(soru, vektor_db, istemci):
     2. Başarı: Geçme notu 50. 6 dersten fazla başarısızlıkta sınıf tekrarı.
     3. Disiplin: Kopya ve sigara kınama cezasıdır.
     4. Sorumluluk sınavları Birinci dönemin ilk haftası, ikinci dönemin ilk haftası ve son iki hafta içerisinde yapılır.
+    5. Devamsızlık sınırı 60 çıkması için Üniversite hastaneleri veya tam teşekküllü hastanelerde kontrol kayıtlı ağır hastalık, organ nakli gibi sürekli tedavi gerektiren durumlarda 60 güne çıkabilir.
+    6. Sabah ilk derse 5 dakika geç kalmada 5 defa geç kalma durumunda yarım gün özürsüz devamsızlık olarak işlenir.
+    7. Okuldan yarım gün izin alınırsa yarım gün özürsüz devamsızlık olarak işlenir.
+    8. Tüm derslerden başarılı veya başarısız olsada yıl sonu başarı puanı en az 50 olan öğrenciler doğrudan geçebilir. 
+    9. 4'ten fazla dersden kaldıysa sınıf tekrarı en fazla 3 dersten kalırsa sorumlu olarak geçer.
+    10. Onur Belgesi alabilmesi için gerekli şartlar : Okul öğrenci ödül ve disiplin kurulunun görüşü alınarak; okul kültürü, sosyal sorumluluk ve başarı gibi kriterlerde örnek davranış sergileyenlere verilir.
+    11. Üst üste üç dönem Takdir Belgesi alırsa üstün başarı belgesi verilir.
+    12. Okulla alakalı bişi soruyorsa mesaj içeriğini engelleme.
+    13.
     Siyaset ve uygunsuz konulara girme."""
 
     iletiler = [{"role": "system", "content": sistem_mesaji}]
