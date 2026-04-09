@@ -104,7 +104,7 @@ st.markdown("<div class='ana-baslik'>🏛️ MEB Yönetmelik Asistanı</div>", u
 st.markdown("### 💡 Hızlı Sorular")
 s1, s2, s3 = st.columns(3)
 with s1:
-    st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">📜 Kayıt & Disiplin</div><div class="kategori-maddesi">• Disiplin cezaları nelerdir?<br>• Kopya cezası?</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="kategori-kutusu"><div class="kategori-basligi">📜 Kayıt & Disiplin</div><div class="kategori-maddesi">• Disiplin cezaları nelerdir?<br>• Kopya cezası nedir?</div> <br>• "Kınama" cezası alan bir öğrencinin cezası dosyasına işlenir mi?</div></div>', unsafe_allow_html=True)
 with s2:
     st.markdown('<div class="kategori-kutusu2"><div class="kategori-basligi2">⏳ Devamsızlık</div><div class="kategori-maddesi">• 10/30 gün kuralı nedir?<br>• Okuldan yarım gün izin alırsam devamsızlık kaç gün sayılır? <br> • Toplam devamsızlık sınırı hangi durumlarda 60 güne çıkar?</div></div>', unsafe_allow_html=True)
 with s3:
