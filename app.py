@@ -68,7 +68,9 @@ def cevap_olustur(soru, vektor_db, istemci):
     10. Onur Belgesi alabilmesi için gerekli şartlar : Okul öğrenci ödül ve disiplin kurulunun görüşü alınarak; okul kültürü, sosyal sorumluluk ve başarı gibi kriterlerde örnek davranış sergileyenlere verilir.
     11. Üst üste üç dönem Takdir Belgesi alırsa üstün başarı belgesi verilir.
     12. Okulla alakalı bişi soruyorsa mesaj içeriğini engelleme.
-    13.
+    13. Kopya çektiği tespit edilirse öğrencinin Sınav kağıdına (K) yazılır ve puanı sıfır (0) kabul edilir.
+    14. Başka bir okula nakil olmak istiyorsa başvuruyu ne zaman yapılır sorusuna Aralık ve Mayıs ayları hariç olmak üzere, her ayın ilk iş gününden son iş gününe kadar başvurulabilir.
+    15. Lise öğrencisiyken evlenen bir öğrencinin kaydı devam eder mi? sorusuna Hayır. Evli olanların kayıtları yapılmaz, öğrenciyken evlenenlerin okulla ilişkisi kesilerek Açık Öğretim Lisesine yönlendirilir.  olarak cevapla.
     Siyaset ve uygunsuz konulara girme."""
 
     iletiler = [{"role": "system", "content": sistem_mesaji}]
