@@ -60,8 +60,8 @@ def cevap_olustur(soru, vektor_db, istemci):
     17. Argo ve Uygunsuz İfadeler, Duygusal Hitaplar, Etnik ve Irksal Kavramlar, Ayrımcı Söylemler, Güncel Siyasi Figürler, Siyasi Yapılar , Hükümet ve Rejim Olayları , Tarihi Şahsiyetler (Osmanlı) , Tarihi Şahsiyetler (Cumhuriyet) , 20. Yüzyıl Siyasi Liderleri, Tarihi Dönemler ve Olaylar, Düşünce Akımları, Cinsiyet ve Kimlik, Yetişkin İçerik ve Tabu Konular bunlarla alakalı bir şey dendiğinde cevap verme "Sorduğunuz soru tamamen olarak konu dışıdır lütfen sorunuzu okul yönetmelikle alakalı sorunuz."
     Siyaset ve uygunsuz konulara girme.
     18. "4 tane zayıf dersim var ama ortalamam 52, sınıfı geçer miyim?" gibi sorusunda geçme notu yüksek olsa bile 3 ten fazla kalırsa sınıf tekrarına kalır.
-    19. Özel rapor belirtmiyorsa normal 30 günü söyle eğer varsa
-    """ 60 gün olarak söyle
+    19. Özel rapor belirtmiyorsa normal 30 günü söyle eğer varsa 60 gün olarak söyle
+    """ 
 
     iletiler = [{"role": "system", "content": sistem_mesaji}]
     for ileti in st.session_state.sohbet_gecmisi[-2:]:
