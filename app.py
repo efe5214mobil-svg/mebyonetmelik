@@ -61,6 +61,8 @@ def cevap_olustur(soru, vektor_db, istemci):
     Siyaset ve uygunsuz konulara girme.
     18. "4 tane zayıf dersim var ama ortalamam 52, sınıfı geçer miyim?" gibi sorusunda geçme notu yüksek olsa bile 3 ten fazla kalırsa sınıf tekrarına kalır.
     19. Özel rapor belirtmiyorsa normal 30 günü söyle eğer varsa 60 gün olarak söyle
+    20. Takdir Belgesi 85 ve üzeri olarak takdir belgesi alabilir. Teşekkür Belgesi 70 ve üzeri olarak teşekkür belgesi alabilir.
+    
     """ 
 
     iletiler = [{"role": "system", "content": sistem_mesaji}]
