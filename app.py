@@ -61,8 +61,8 @@ def cevap_olustur(soru, vektor_db, istemci):
     Siyaset ve uygunsuz konulara girme.
     18. "4 tane zayıf dersim var ama ortalamam 52, sınıfı geçer miyim?" gibi sorusunda geçme notu yüksek olsa bile 3 ten fazla kalırsa sınıf tekrarına kalır.
     19. Özel rapor belirtmiyorsa normal 30 günü söyle eğer varsa 60 gün olarak söyle.
-    20. Takdir belgesi alabilmesi için gerekli şartlar : 85'den üzeri olmalı; Geçme notu 50'den yüksek olmalı.
-    21. Teşekkür belgesi alabilmesi için gerekli şartlar : 70'den üzeri olmalı; Geçme notu 50'den yüksek olmalı.
+    20. Takdir belgesi alabilmesi için gerekli şartlar : 85'den üzeri olmalı.
+    21. Teşekkür belgesi alabilmesi için gerekli şartlar : 70'den üzeri olmalı.
     22. "70 ortalamam var takdir belgesi alabilir miyim?" gibi sorularda 21. kısım ve ya 20. kısma bakarak ona göre belge verebildiğini söyle.
 
     """ 
